@@ -23,6 +23,11 @@ def orchestration():
     orch.connect_db()
     return orch
     
+@pytest.fixture
+def batch_job(orchestration):
+    sql = BatchJobModel.new_record_sql()
+    orchestration.run_sql_command(sql)
+    
 
 class TestOrchestration(TestJkolyer):
     def test_create(self, orchestration):
@@ -44,7 +49,16 @@ class TestOrchestration(TestJkolyer):
         assert result[0][0] == UploadJobModel.table_name()
         
 class TestBatchJob(TestJkolyer):
-    def test_create(self, orchestration):
-        sql = BatchJobModel.new_record_sql()
-        result = orchestration.run_sql_command(sql)
+    def test_create_table(self, orchestration):
+        sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{BatchJobModel.table_name()}'"
+        result = orchestration.run_sql_query(sql)
+        assert result[0][0] == BatchJobModel.table_name()
+
+    def test_create_batch(self, batch_job, orchestration):
+        result = BatchJobModel.query_latest(orchestration.db_conn)
+        assert result is not None
+
+    def test_create_files(self, orchestration):
+        result = BatchJobModel.query_latest(orchestration.db_conn)
+        assert result is not None
 
