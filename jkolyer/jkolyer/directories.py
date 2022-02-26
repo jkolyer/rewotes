@@ -61,9 +61,11 @@ class DirectoryTree:
 
     def generate(self):
         tree = self._generator.build_tree()
+        breakpoint()
         for entry in tree:
             print(entry)
-                    
+
+            
 def parse_cmd_line_arguments():
     parser = argparse.ArgumentParser(
         prog="tree",

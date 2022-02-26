@@ -1,6 +1,6 @@
 import sqlite3
 import logging
-from jkolyer.models import FileModel, JobModel
+from jkolyer.models import FileModel, UploadJobModel, BatchJobModel
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -37,7 +37,11 @@ class Orchestration:
             for sql in sqls: cursor.execute(sql)
             self.db_conn.commit()
             
-            sqls = JobModel.create_table_sql()
+            sqls = UploadJobModel.create_table_sql()
+            for sql in sqls: cursor.execute(sql)
+            self.db_conn.commit()
+
+            sqls = BatchJobModel.create_table_sql()
             for sql in sqls: cursor.execute(sql)
             self.db_conn.commit()
 
@@ -47,7 +51,7 @@ class Orchestration:
         finally:
             cursor.close()
 
-    def run_sql(self, sql):
+    def run_sql_query(self, sql):
         if self.db_conn is None: return
         cursor = self.db_conn.cursor()
         try:
@@ -56,5 +60,18 @@ class Orchestration:
             logger.error(f"Error running sql: {error}; ${sql}")
         finally:
             cursor.close()
+
+    def run_sql_command(self, sql):
+        if self.db_conn is None: return
+        cursor = self.db_conn.cursor()
+        try:
+            cursor.execute(sql)
+            self.db_conn.commit()
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; ${sql}")
+        finally:
+            cursor.close()
+
+    # def generate_file_records(self):
         
 

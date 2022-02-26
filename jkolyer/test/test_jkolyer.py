@@ -3,7 +3,7 @@ Tests for `jkolyer` module.
 """
 import pytest
 from jkolyer.orchestration import Orchestration
-from jkolyer.models import FileModel, JobModel
+from jkolyer.models import FileModel, UploadJobModel, BatchJobModel
 
 
 class TestJkolyer(object):
@@ -37,9 +37,14 @@ class TestOrchestration(TestJkolyer):
     def test_create_tables(self, orchestration):
         orchestration.create_tables()
         sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{FileModel.table_name()}'"
-        result = orchestration.run_sql(sql)
+        result = orchestration.run_sql_query(sql)
         assert result[0][0] == FileModel.table_name()
-        sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{JobModel.table_name()}'"
-        result = orchestration.run_sql(sql)
-        assert result[0][0] == JobModel.table_name()
+        sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{UploadJobModel.table_name()}'"
+        result = orchestration.run_sql_query(sql)
+        assert result[0][0] == UploadJobModel.table_name()
         
+class TestBatchJob(TestJkolyer):
+    def test_create(self, orchestration):
+        sql = BatchJobModel.new_record_sql()
+        result = orchestration.run_sql_command(sql)
+
