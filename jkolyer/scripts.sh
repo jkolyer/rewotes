@@ -1,4 +1,4 @@
 
 runtest() {
-    pytest -s  --log-cli-level=DEBUG
+    pytest -s  --log-cli-level=DEBUG test
 }
