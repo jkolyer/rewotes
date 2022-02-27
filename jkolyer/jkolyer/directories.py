@@ -73,29 +73,28 @@ class DirectoryTree:
         sizetypes = ['b','k','m']
         sizetype = sizetypes[random.randint(0,len(sizetypes)-1)]
         size = random.randint(8,100)
-        args = f"-n {size}{sizetype}"
-        print(f"filename = {filename}; args = {args}")
-        # process = subprocess.Popen(['mkfile', args, filename],
-        #                                         stdout=subprocess.PIPE,
-        #                                         stderr=subprocess.PIPE)
-        # stdout, stderr = process.communicate()
+        args = f"{size}{sizetype}"
+        cmd = ['mkfile', "-n", args, filename]
+        print(cmd)
+        process = subprocess.run(['mkfile', "-n", args, filename])
 
+    def _generate(self, path, dir_level):
+        print(f"makedir: {path}")
+        os.makedirs(path)
 
-    def _generate_level(self, path, level):
-        _path = f"{path}{os.sep}{level}"
-        # os.makedirs(_path)
-        print(f"_generate_level: {path}")
-        
-        for idx in range(self.tree_depth):
-            self._generate_file(f"{_path}{os.sep}{idx}")
+        for file_num in range(self.tree_depth):
+            _path = f"{path}{os.sep}{file_num}"
+            self._generate_file(_path)
             
-        if level < self.tree_depth:
-            self._generate_level(_path, level+1)
-
+        if dir_level < self.tree_depth:
+            _path = f"{path}{os.sep}d{dir_level}"
+            self._generate(_path, dir_level + 1)
+            
     def generate(self):
         # os.makedirs(self.root_dir)
         for level in range(self.tree_depth):
-            self._generate_level(self.root_dir, level)
+            path = f"{self.root_dir}{os.sep}d{level}"
+            self._generate(path, 1)
             
 def parse_cmd_line_arguments():
     parser = argparse.ArgumentParser(
