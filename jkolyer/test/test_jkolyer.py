@@ -71,12 +71,17 @@ class TestFileModel(TestJkolyer):
         cursor.close()
 
     def test_create_file_records(self, orchestration):
-        result = BatchJobModel.query_latest(orchestration.db_conn)
-        file_count = result.generate_file_records(orchestration.db_conn)
+        batch = BatchJobModel.query_latest(orchestration.db_conn)
+        file_count = batch.generate_file_records(orchestration.db_conn)
         
         cursor = self.db_conn.cursor()
         result = cursor.execute(f"SELECT COUNT(*) FROM {FileModel.table_name()}").fetchall()
         assert result[0][0] == file_count
+
+        # ensure no duplicates are created
+        new_file_count = batch.generate_file_records(orchestration.db_conn)
+        result = cursor.execute(f"SELECT COUNT(*) FROM {FileModel.table_name()}").fetchall()
+        assert result[0][0] == file_count
+        
         cursor.close()
         
-

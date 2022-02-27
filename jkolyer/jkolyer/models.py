@@ -38,7 +38,7 @@ class FileModel(BaseModel):
                 """.format(
                     table_name=cls.table_name(),
                 ),
-                f"CREATE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(file_path)",
+                f"CREATE UNIQUE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(file_path)",
                 ]
 
     def __init__(self, file_size, last_modified, permissions, file_path):
@@ -51,7 +51,7 @@ class FileModel(BaseModel):
 
     def save(self, cursor):
         sql = """
-            INSERT INTO {table_name}
+            INSERT OR IGNORE INTO {table_name}
                   ( id, created_at, file_size, last_modified, permissions, file_path )
                   VALUES 
                   ( '{id}', {created_at}, {file_size}, {last_modified}, '{permissions}', '{file_path}' )
@@ -124,7 +124,8 @@ class BatchJobModel(BaseModel):
         root_dir TEXT
         );
         """.format(table_name=cls.table_name()),
-                f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(created_at);"]
+                f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(created_at);",
+                ]
 
     @classmethod
     def new_record_sql(cls, root_dir):
