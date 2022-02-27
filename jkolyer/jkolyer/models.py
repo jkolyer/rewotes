@@ -7,6 +7,7 @@ from pathlib import Path
 from enum import Enum
 from cuid import cuid
 import logging
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
@@ -15,6 +16,50 @@ def dateSinceEpoch(mydate=datetime.now()):
     return floor(result)
 
 class BaseModel:
+    db_name = 'parallel-file-upload.db'
+    db_conn = sqlite3.connect(db_name)
+    
+    @classmethod
+    def create_tables(self):
+        cursor = self.db_conn.cursor()
+        try:
+            sqls = FileModel.create_table_sql()
+            for sql in sqls: cursor.execute(sql)
+            self.db_conn.commit()
+            
+            sqls = UploadJobModel.create_table_sql()
+            for sql in sqls: cursor.execute(sql)
+            self.db_conn.commit()
+
+            sqls = BatchJobModel.create_table_sql()
+            for sql in sqls: cursor.execute(sql)
+            self.db_conn.commit()
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; ${sql}")
+        finally:
+            cursor.close()
+
+    @classmethod
+    def run_sql_query(self, sql):
+        cursor = self.db_conn.cursor()
+        try:
+            return cursor.execute(sql).fetchall()
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; ${sql}")
+        finally:
+            cursor.close()
+
+    @classmethod
+    def run_sql_command(self, sql):
+        cursor = self.db_conn.cursor()
+        try:
+            cursor.execute(sql)
+            self.db_conn.commit()
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; ${sql}")
+        finally:
+            cursor.close()
+
     def __init__(self):
         pass
 
@@ -107,10 +152,6 @@ class BatchJobModel(BaseModel):
         self.root_dir = props[3]
 
     @classmethod
-    def db_name(cls):
-        return 'parallel-file-upload.db'
-    
-    @classmethod
     def table_name(cls):
         return 'BatchJob'
     
@@ -142,9 +183,9 @@ class BatchJobModel(BaseModel):
                     root_dir=root_dir,)
     
     @classmethod
-    def query_latest(cls, db_conn):
+    def query_latest(cls):
         sql = f"SELECT * FROM {cls.table_name()} ORDER BY created_at DESC LIMIT 1"
-        cursor = db_conn.cursor()
+        cursor = cls.db_conn.cursor()
         try:
             result = cursor.execute(sql).fetchall()
             if len(result) == 0: return None
@@ -159,8 +200,8 @@ class BatchJobModel(BaseModel):
             cursor.close()
         return None
 
-    def generate_file_records(self, db_conn):
-        cursor = db_conn.cursor()
+    def generate_file_records(self):
+        cursor = self.db_conn.cursor()
         file_count = 0
         try:
             for file_path in Path(self.root_dir).rglob('*'):
@@ -175,7 +216,7 @@ class BatchJobModel(BaseModel):
 
                 file_obj = FileModel(file_size, last_modified, permissions, file_path)
                 file_obj.save(cursor)
-                db_conn.commit()
+                self.db_conn.commit()
                 
                 file_count += 1
         
