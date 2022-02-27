@@ -1,8 +1,10 @@
 import os
+import subprocess
 import pathlib
 import argparse
 import pathlib
 import sys
+import random
 
 
 PIPE = "│"
@@ -12,8 +14,9 @@ PIPE_PREFIX = "│   "
 SPACE_PREFIX = "    "
 
 class _TreeGenerator:
-    def __init__(self, root_dir):
+    def __init__(self, root_dir, tree_depth):
         self._root_dir = pathlib.Path(root_dir)
+        self.tree_depth = tree_depth
         self._tree = []
 
     def build_tree(self):
@@ -56,15 +59,43 @@ class _TreeGenerator:
         self._tree.append(f"{prefix}{connector} {file.name}")
 
 class DirectoryTree:
-    def __init__(self, root_dir):
-        self._generator = _TreeGenerator(root_dir)
+    def __init__(self, root_dir, tree_depth):
+        self.root_dir = root_dir
+        self.tree_depth = tree_depth
+        self._generator = _TreeGenerator(root_dir, tree_depth)
+
+    # def generate(self):
+    #     tree = self._generator.build_tree()
+    #     for entry in tree:
+    #         print(entry)
+
+    def _generate_file(self, filename):
+        sizetypes = ['b','k','m']
+        sizetype = sizetypes[random.randint(0,len(sizetypes)-1)]
+        size = random.randint(8,100)
+        args = f"-n {size}{sizetype}"
+        print(f"filename = {filename}; args = {args}")
+        # process = subprocess.Popen(['mkfile', args, filename],
+        #                                         stdout=subprocess.PIPE,
+        #                                         stderr=subprocess.PIPE)
+        # stdout, stderr = process.communicate()
+
+
+    def _generate_level(self, path, level):
+        _path = f"{path}{os.sep}{level}"
+        # os.makedirs(_path)
+        print(f"_generate_level: {path}")
+        
+        for idx in range(self.tree_depth):
+            self._generate_file(f"{_path}{os.sep}{idx}")
+            
+        if level < self.tree_depth:
+            self._generate_level(_path, level+1)
 
     def generate(self):
-        tree = self._generator.build_tree()
-        breakpoint()
-        for entry in tree:
-            print(entry)
-
+        # os.makedirs(self.root_dir)
+        for level in range(self.tree_depth):
+            self._generate_level(self.root_dir, level)
             
 def parse_cmd_line_arguments():
     parser = argparse.ArgumentParser(
@@ -79,13 +110,23 @@ def parse_cmd_line_arguments():
         default=".",
         help="Generate a full directory tree starting at ROOT_DIR",
     )
+    parser.add_argument(
+        "--tree_depth",
+        metavar="TREE_DEPTH",
+        nargs=1,
+        default="3",
+        type=int,
+        required=True,
+        help="How many directory levels to create",
+    )
     return parser.parse_args()
 
 if __name__ == '__main__':
     args = parse_cmd_line_arguments()
     root_dir = pathlib.Path(args.root_dir)
+    tree_depth = args.tree_depth
     if not root_dir.is_dir():
         print("The specified root directory doesn't exist")
         sys.exit()
-    tree = DirectoryTree(root_dir)
+    tree = DirectoryTree(root_dir, tree_depth[0])
     tree.generate()
