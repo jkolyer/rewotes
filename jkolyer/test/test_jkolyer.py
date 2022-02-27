@@ -60,6 +60,6 @@ class TestBatchJob(TestJkolyer):
 
     def test_create_file_records(self, orchestration):
         result = BatchJobModel.query_latest(orchestration.db_conn)
-        result.generate_file_records()
+        result.generate_file_records(orchestration.db_conn)
         
 

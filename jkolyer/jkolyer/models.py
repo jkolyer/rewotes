@@ -1,4 +1,6 @@
+import os
 import sqlite3
+import stat
 from math import floor
 from datetime import datetime
 from pathlib import Path
@@ -27,18 +29,32 @@ class FileModel(BaseModel):
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}
                   ( id TEXT PRIMARY KEY, 
+                    created_at INTEGER,
                     file_size INTEGER,
                     last_modified INTEGER,
                     permissions TEXT,
-                    file_name TEXT,
                     file_path TEXT,
-                    UNIQUE(file_name, file_path)
+                    batch_id TEXT,
+                    FOREIGN KEY (batch_id) REFERENCES {batch_table_name}(id)
                   );
-                """.format(table_name=cls.table_name()),
-                f"CREATE INDEX IF NOT EXISTS IdxFileName ON {cls.table_name()}(file_name)",
+                """.format(
+                    table_name=cls.table_name(),
+                    batch_table_name=BatchJobModel.table_name()
+                ),
                 f"CREATE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(file_path)",
+                f"CREATE INDEX IF NOT EXISTS IdxBatch ON {cls.table_name()}(batch_id);",
                 ]
 
+    def __init__(self, batch_id, file_size, last_modified, permissions, file_path):
+        self.id = cuid()
+        self.created_at = dateSinceEpoch()
+        self.batch_id = batch_id
+        self.file_size = file_size
+        self.last_modified = last_modified
+        self.permissions = permissions
+        self.file_path = file_path
+
+        
 class UploadJobModel(BaseModel):
     @classmethod
     def table_name(cls):
@@ -62,6 +78,7 @@ class UploadJobModel(BaseModel):
                    batch_table_name=BatchJobModel.table_name()
                ),
                 f"CREATE INDEX IF NOT EXISTS IdxJobFile ON {cls.table_name()}(file_id);",
+                f"CREATE INDEX IF NOT EXISTS IdxBatch ON {cls.table_name()}(batch_id);",
                 f"CREATE INDEX IF NOT EXISTS IdxStatus ON {cls.table_name()}(status);"]
 
 class BatchStatus(Enum):
@@ -124,9 +141,20 @@ class BatchJobModel(BaseModel):
             cursor.close()
         return None
 
-    def generate_file_records(self):
-        for path in Path(self.root_dir).rglob('*'):
-            logger.debug(path)
+    def generate_file_records(self, db_conn):
+        for file_path in Path(self.root_dir).rglob('*'):
+            fstat = os.stat(file_path)
+            fmode = fstat.st_mode
+            if stat.S_ISDIR(fmode): continue
+            logger.debug(file_path)
+            
+            file_size = fstat.st_size
+            last_modified = fstat.st_mtime
+            permissions = stat.S_IMODE(fmode)
+            
+            file_obj = FileModel(self.id, file_size, last_modified, permissions, file_path)
+            
+            breakpoint()
             
         return 'BatchJob'
     
