@@ -1,7 +1,6 @@
 import sqlite3
-import logging
 from jkolyer.models import FileModel, UploadJobModel, BatchJobModel
-
+import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
@@ -17,7 +16,7 @@ class Orchestration:
     
     def connect_db(self):
         try:
-            self.db_conn = sqlite3.connect('parallel-file-upload.db')
+            self.db_conn = sqlite3.connect(BatchJobModel.db_name())
             cursor = self.db_conn.cursor()
 
             sqlite_select_Query = "select sqlite_version();"

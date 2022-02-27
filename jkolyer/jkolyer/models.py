@@ -33,27 +33,38 @@ class FileModel(BaseModel):
                     file_size INTEGER,
                     last_modified INTEGER,
                     permissions TEXT,
-                    file_path TEXT,
-                    batch_id TEXT,
-                    FOREIGN KEY (batch_id) REFERENCES {batch_table_name}(id)
+                    file_path TEXT
                   );
                 """.format(
                     table_name=cls.table_name(),
-                    batch_table_name=BatchJobModel.table_name()
                 ),
                 f"CREATE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(file_path)",
-                f"CREATE INDEX IF NOT EXISTS IdxBatch ON {cls.table_name()}(batch_id);",
                 ]
 
-    def __init__(self, batch_id, file_size, last_modified, permissions, file_path):
+    def __init__(self, file_size, last_modified, permissions, file_path):
         self.id = cuid()
         self.created_at = dateSinceEpoch()
-        self.batch_id = batch_id
         self.file_size = file_size
         self.last_modified = last_modified
         self.permissions = permissions
         self.file_path = file_path
 
+    def save(self, cursor):
+        sql = """
+            INSERT INTO {table_name}
+                  ( id, created_at, file_size, last_modified, permissions, file_path )
+                  VALUES 
+                  ( '{id}', {created_at}, {file_size}, {last_modified}, '{permissions}', '{file_path}' )
+                """.format(
+                    table_name=self.__class__.table_name(),
+                    id=self.id,
+                    created_at=self.created_at,
+                    file_size=self.file_size,
+                    last_modified=self.last_modified,
+                    permissions=self.permissions,
+                    file_path=self.file_path
+                )
+        cursor.execute(sql)
         
 class UploadJobModel(BaseModel):
     @classmethod
@@ -96,6 +107,10 @@ class BatchJobModel(BaseModel):
         self.root_dir = props[3]
 
     @classmethod
+    def db_name(cls):
+        return 'parallel-file-upload.db'
+    
+    @classmethod
     def table_name(cls):
         return 'BatchJob'
     
@@ -131,10 +146,12 @@ class BatchJobModel(BaseModel):
         cursor = db_conn.cursor()
         try:
             result = cursor.execute(sql).fetchall()
-            if len(result) > 0:
-                logger.debug(f"BatchJobModel.query_latest: {result}")
-                model = BatchJobModel(result[0])
-                return model
+            if len(result) == 0: return None
+            
+            logger.debug(f"BatchJobModel.query_latest: {result}")
+            model = BatchJobModel(result[0])
+            return model
+        
         except sqlite3.Error as error:
             logger.error(f"Error running sql: {error}; ${sql}")
         finally:
@@ -142,20 +159,28 @@ class BatchJobModel(BaseModel):
         return None
 
     def generate_file_records(self, db_conn):
-        for file_path in Path(self.root_dir).rglob('*'):
-            fstat = os.stat(file_path)
-            fmode = fstat.st_mode
-            if stat.S_ISDIR(fmode): continue
-            logger.debug(file_path)
-            
-            file_size = fstat.st_size
-            last_modified = fstat.st_mtime
-            permissions = stat.S_IMODE(fmode)
-            
-            file_obj = FileModel(self.id, file_size, last_modified, permissions, file_path)
-            
-            breakpoint()
-            
-        return 'BatchJob'
-    
+        cursor = db_conn.cursor()
+        file_count = 0
+        try:
+            for file_path in Path(self.root_dir).rglob('*'):
+                fstat = os.stat(file_path)
+                fmode = fstat.st_mode
+                if stat.S_ISDIR(fmode): continue
+
+                logger.debug(file_path)
+                file_size = fstat.st_size
+                last_modified = fstat.st_mtime
+                permissions = stat.S_IMODE(fmode)
+
+                file_obj = FileModel(file_size, last_modified, permissions, file_path)
+                file_obj.save(cursor)
+                db_conn.commit()
+                
+                file_count += 1
+        
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}")
+        finally:
+            cursor.close()
+        return file_count
     
