@@ -1,6 +1,7 @@
 import sqlite3
 from math import floor
 from datetime import datetime
+from pathlib import Path
 from enum import Enum
 from cuid import cuid
 import logging
@@ -26,16 +27,16 @@ class FileModel(BaseModel):
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}
                   ( id TEXT PRIMARY KEY, 
-                    fileSize INTEGER,
-                    lastModified INTEGER,
+                    file_size INTEGER,
+                    last_modified INTEGER,
                     permissions TEXT,
-                    fileName TEXT,
-                    filePath TEXT,
-                    UNIQUE(fileName, filePath)
+                    file_name TEXT,
+                    file_path TEXT,
+                    UNIQUE(file_name, file_path)
                   );
                 """.format(table_name=cls.table_name()),
-                f"CREATE INDEX IF NOT EXISTS IdxFileName ON {cls.table_name()}(fileName)",
-                f"CREATE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(filePath)",
+                f"CREATE INDEX IF NOT EXISTS IdxFileName ON {cls.table_name()}(file_name)",
+                f"CREATE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(file_path)",
                 ]
 
 class UploadJobModel(BaseModel):
@@ -48,19 +49,19 @@ class UploadJobModel(BaseModel):
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}
                   ( id TEXT PRIMARY KEY, 
-                    batchId TEXT,
-                    fileId TEXT,
+                    batch_id TEXT,
+                    file_id TEXT,
                     status INTEGER,
-                    createdAt INTEGER,
-                    FOREIGN KEY (fileId) REFERENCES {file_table_name}(id),
-                    FOREIGN KEY (batchId) REFERENCES {batch_table_name}(id)
+                    created_at INTEGER,
+                    FOREIGN KEY (file_id) REFERENCES {file_table_name}(id),
+                    FOREIGN KEY (batch_id) REFERENCES {batch_table_name}(id)
                   );
                """.format(
                    table_name=cls.table_name(),
                    file_table_name=FileModel.table_name(),
                    batch_table_name=BatchJobModel.table_name()
                ),
-                f"CREATE INDEX IF NOT EXISTS IdxJobFile ON {cls.table_name()}(fileId);",
+                f"CREATE INDEX IF NOT EXISTS IdxJobFile ON {cls.table_name()}(file_id);",
                 f"CREATE INDEX IF NOT EXISTS IdxStatus ON {cls.table_name()}(status);"]
 
 class BatchStatus(Enum):
@@ -74,7 +75,8 @@ class BatchJobModel(BaseModel):
     def __init__(self, props):
         self.id = props[0]
         self.status = props[1]
-        self.createdAt = props[2]
+        self.created_at = props[2]
+        self.root_dir = props[3]
 
     @classmethod
     def table_name(cls):
@@ -86,28 +88,29 @@ class BatchJobModel(BaseModel):
         CREATE TABLE IF NOT EXISTS {table_name}
         ( id TEXT PRIMARY KEY, 
         status INTEGER,
-        createdAt INTEGER
+        created_at INTEGER,
+        root_dir TEXT
         );
         """.format(table_name=cls.table_name()),
-                f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(createdAt);"]
+                f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(created_at);"]
 
     @classmethod
-    def new_record_sql(cls):
+    def new_record_sql(cls, root_dir):
         return """
         INSERT INTO {table_name}
-                  ( id, status, createdAt )
+                  ( id, status, created_at, root_dir )
                   VALUES 
-                  ( '{idval}', {status}, {createdAt} )
+                  ( '{idval}', {status}, {created_at}, '{root_dir}' )
                 """.format(
                     table_name=cls.table_name(),
                     idval=cuid(),
                     status=BatchStatus.PENDING.value,
-                    createdAt=dateSinceEpoch(),
-                )
+                    created_at=dateSinceEpoch(),
+                    root_dir=root_dir,)
     
     @classmethod
     def query_latest(cls, db_conn):
-        sql = f"SELECT * FROM {cls.table_name()} ORDER BY createdAt DESC LIMIT 1"
+        sql = f"SELECT * FROM {cls.table_name()} ORDER BY created_at DESC LIMIT 1"
         cursor = db_conn.cursor()
         try:
             result = cursor.execute(sql).fetchall()
@@ -120,9 +123,11 @@ class BatchJobModel(BaseModel):
         finally:
             cursor.close()
         return None
-        
-    
+
     def generate_file_records(self):
+        for path in Path(self.root_dir).rglob('*'):
+            logger.debug(path)
+            
         return 'BatchJob'
     
     

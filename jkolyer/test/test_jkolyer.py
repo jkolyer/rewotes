@@ -25,7 +25,7 @@ def orchestration():
     
 @pytest.fixture
 def batch_job(orchestration):
-    sql = BatchJobModel.new_record_sql()
+    sql = BatchJobModel.new_record_sql('./samples')
     orchestration.run_sql_command(sql)
     
 
@@ -58,7 +58,8 @@ class TestBatchJob(TestJkolyer):
         result = BatchJobModel.query_latest(orchestration.db_conn)
         assert result is not None
 
-    def test_create_files(self, orchestration):
+    def test_create_file_records(self, orchestration):
         result = BatchJobModel.query_latest(orchestration.db_conn)
-        assert result is not None
+        result.generate_file_records()
+        
 
