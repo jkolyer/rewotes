@@ -7,6 +7,7 @@ from pathlib import Path
 from enum import Enum
 from cuid import cuid
 import logging
+from jkolyer.uploader import Uploader
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -24,6 +25,7 @@ class UploadStatus(Enum):
 class BaseModel:
     db_name = 'parallel-file-upload.db'
     db_conn = sqlite3.connect(db_name)
+    bucket_name = 'rewotes-pfu-bucket'
     
     @classmethod
     def create_tables(self):
@@ -102,6 +104,19 @@ class FileModel(BaseModel):
         finally:
             cursor.close()
 
+    @classmethod
+    def fetch_record(cls, status):
+        sql = f"SELECT * FROM {FileModel.table_name()} WHERE status = {status} ORDER BY created_at DESC LIMIT 1"
+        cursor = cls.db_conn.cursor()
+        try:
+            result = cursor.execute(sql).fetchone()
+            return FileModel(result) if result is not None else None
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; ${sql}")
+        finally:
+            cursor.close()
+        return None
+
     def __init__(self, *args):
         tpl = args[0]
         self.id = tpl[0]
@@ -133,21 +148,31 @@ class FileModel(BaseModel):
     def _update_status(self, cursor):
         sql = f"UPDATE {self.table_name()} SET status = {self.status} WHERE id = '{self.id}'"
         cursor.execute(sql)
+        self.db_conn.commit()
 
     def start_upload(self, cursor):
         self.status = UploadStatus.IN_PROGRESS.value
         self._update_status(cursor)
+        
+        result = Uploader().upload_file(self.file_path, self.bucket_name)
+        self.upload_complete(cursor) if result else self.upload_failed(cursor) 
 
     def upload_complete(self, cursor):
-        self.status = UploadStatus.IN_PROGRESS.value
+        self.status = UploadStatus.COMPLETED.value
         self._update_status(cursor)
 
     def upload_failed(self, cursor):
-        self.status = UploadStatus.IN_PROGRESS.value
+        self.status = UploadStatus.FAILED.value
         self._update_status(cursor)
 
     def perform_upload(self, cursor):
         self.start_upload(cursor)
+
+    def get_uploaded_file(self):
+        return Uploader().get_uploaded_file(
+            self.bucket_name,
+            os.path.basename(self.file_path)
+        )
 
         
 class BatchJobModel(BaseModel):
@@ -258,7 +283,6 @@ class BatchJobModel(BaseModel):
             page_size = page_size
         )
         results = cursor.execute(sql).fetchall()
-        logger.debug(f"_fetch_files({len(results)}):  {sql}")
         return results
         
 
@@ -270,12 +294,12 @@ class BatchJobModel(BaseModel):
         try:
             while True:
                 results = self._fetch_files(cursor, page_num, page_size)
-                # breakpoint()
                 if len(results) == 0: break
+                
                 page_num += 1
                 for result in results:
                     model = FileModel(result)
-                    logger.debug(f"id = {model.id}")
+                    # logger.debug(f"id = {model.id}")
                     model.perform_upload(cursor)
         
         except sqlite3.Error as error:

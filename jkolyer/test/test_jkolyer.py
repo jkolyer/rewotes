@@ -1,7 +1,10 @@
 import pytest
 import sqlite3
+import boto3
+from moto import mock_s3
+
 from jkolyer.orchestration import Orchestration
-from jkolyer.models import BaseModel, BatchJobModel, FileModel
+from jkolyer.models import BaseModel, BatchJobModel, FileModel, UploadStatus
 
 
 class TestJkolyer(object):
@@ -20,7 +23,17 @@ def batch_job():
     sql = BatchJobModel.new_record_sql('./samples')
     BaseModel.run_sql_command(sql)
     
-
+@pytest.fixture
+def s3():
+    """Pytest fixture that creates the recipes bucket in 
+    the fake moto AWS account
+    Yields a fake boto3 s3 client
+    """
+    with mock_s3():
+        s3 = boto3.client("s3")
+        s3.create_bucket(Bucket = FileModel.bucket_name)
+        yield s3
+        
 class TestTables(TestJkolyer):
     def test_create_tables(self):
         BaseModel.create_tables()
@@ -62,7 +75,26 @@ class TestFileModel(TestJkolyer):
         
         cursor.close()
 
-    def test_file_uploads(self):
+    @mock_s3
+    def test_file_upload(self):
+        conn = boto3.resource('s3', region_name='us-east-1')
+        conn.create_bucket(Bucket=FileModel.bucket_name)
+                
+        model = FileModel.fetch_record(UploadStatus.PENDING.value)
+        assert model is not None
+        cursor = FileModel.db_conn.cursor()
+        model.start_upload(cursor)
+        cursor.close()
+
+        assert model.status == UploadStatus.COMPLETED.value
+        model2 = FileModel.fetch_record(UploadStatus.COMPLETED.value)
+        assert model2 is not None
+        assert model2.id == model.id
+        
+        file_contents = model.get_uploaded_file()
+        assert file_contents is not None
+        
+    def xtest_batch_uploads(self):
         batch = BatchJobModel.query_latest()
         batch.upload_files()
         
