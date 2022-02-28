@@ -1,4 +1,5 @@
 import os
+from abc import ABC, abstractmethod
 import boto3
 from botocore.exceptions import ClientError
 import logging
@@ -6,9 +7,23 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-class Uploader:
+class Uploader(ABC):
     def __init__(self):
         pass
+
+    @abstractmethod
+    def get_uploaded_file(self, bucket_name, fname):
+        pass
+
+    @abstractmethod
+    def perform_upload(self):
+        pass
+                
+    @abstractmethod
+    def upload_file(self, file_name, bucket, object_name=None):
+        pass
+
+class S3Uploader(Uploader):
 
     def get_uploaded_file(self, bucket_name, fname):
         client = boto3.client("s3")

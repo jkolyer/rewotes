@@ -8,7 +8,7 @@ from pathlib import Path
 from enum import Enum
 from cuid import cuid
 import logging
-from jkolyer.uploader import Uploader
+from jkolyer.uploader import S3Uploader
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -127,6 +127,7 @@ class FileModel(BaseModel):
         self.permissions = tpl[4]
         self.file_path = tpl[5]
         self.status = tpl[6]
+        self.uploader = S3Uploader()
 
     def save(self, cursor):
         sql = """
@@ -155,7 +156,7 @@ class FileModel(BaseModel):
         self.status = UploadStatus.IN_PROGRESS.value
         self._update_status(cursor)
         
-        result = Uploader().upload_file(self.file_path, self.bucket_name)
+        result = self.uploader.upload_file(self.file_path, self.bucket_name)
         self.upload_complete(cursor) if result else self.upload_failed(cursor) 
 
     def upload_complete(self, cursor):
@@ -167,7 +168,7 @@ class FileModel(BaseModel):
         self._update_status(cursor)
 
     def get_uploaded_file(self):
-        return Uploader().get_uploaded_file(
+        return self.uploader.get_uploaded_file(
             self.bucket_name,
             os.path.basename(self.file_path)
         )
@@ -308,7 +309,7 @@ class BatchJobModel(BaseModel):
 
     async def async_upload_files(self):
         cursor = self.db_conn.cursor()
-        max_concur = 4
+        max_concur = 8
         sem = asyncio.Semaphore(max_concur)
 
         async def task_wrapper(model, cursor):
