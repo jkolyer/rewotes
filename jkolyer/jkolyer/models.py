@@ -165,9 +165,6 @@ class FileModel(BaseModel):
         self.status = UploadStatus.FAILED.value
         self._update_status(cursor)
 
-    def perform_upload(self, cursor):
-        self.start_upload(cursor)
-
     def get_uploaded_file(self):
         return Uploader().get_uploaded_file(
             self.bucket_name,

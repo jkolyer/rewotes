@@ -2,10 +2,15 @@ import pytest
 import sqlite3
 import boto3
 from moto import mock_s3
+import logging
+
+for name in logging.Logger.manager.loggerDict.keys():
+    if ('boto' in name) or ('urllib3' in name) or ('s3transfer' in name) or ('boto3' in name) or ('botocore' in name) or ('nose' in name):
+        logging.getLogger(name).setLevel(logging.CRITICAL)
+logging.getLogger('s3transfer').setLevel(logging.CRITICAL)                    
 
 from jkolyer.orchestration import Orchestration
 from jkolyer.models import BaseModel, BatchJobModel, FileModel, UploadStatus
-
 
 class TestJkolyer(object):
 
@@ -34,6 +39,15 @@ def s3():
         s3.create_bucket(Bucket = FileModel.bucket_name)
         yield s3
         
+@pytest.fixture(scope='function')
+def aws_credentials():
+    """Mocked AWS Credentials for moto."""
+    os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
+    os.environ['AWS_SECRET_ACCESS_KEY'] = 'testing'
+    os.environ['AWS_SECURITY_TOKEN'] = 'testing'
+    os.environ['AWS_SESSION_TOKEN'] = 'testing'
+    os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+
 class TestTables(TestJkolyer):
     def test_create_tables(self):
         BaseModel.create_tables()
@@ -97,4 +111,5 @@ class TestFileModel(TestJkolyer):
     def xtest_batch_uploads(self):
         batch = BatchJobModel.query_latest()
         batch.upload_files()
+
         
