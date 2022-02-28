@@ -296,8 +296,8 @@ class BatchJobModel(BaseModel):
                 page_num += 1
                 for result in results:
                     model = FileModel(result)
-                    # logger.debug(f"id = {model.id}")
-                    model.perform_upload(cursor)
+                    logger.debug(f"id = {model.id}")
+                    model.start_upload(cursor)
         
         except sqlite3.Error as error:
             logger.error(f"Error running sql: {error}")

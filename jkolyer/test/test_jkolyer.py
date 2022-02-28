@@ -1,3 +1,4 @@
+import os
 import pytest
 import sqlite3
 import boto3
@@ -28,17 +29,6 @@ def batch_job():
     sql = BatchJobModel.new_record_sql('./samples')
     BaseModel.run_sql_command(sql)
     
-@pytest.fixture
-def s3():
-    """Pytest fixture that creates the recipes bucket in 
-    the fake moto AWS account
-    Yields a fake boto3 s3 client
-    """
-    with mock_s3():
-        s3 = boto3.client("s3")
-        s3.create_bucket(Bucket = FileModel.bucket_name)
-        yield s3
-        
 @pytest.fixture(scope='function')
 def aws_credentials():
     """Mocked AWS Credentials for moto."""
@@ -48,6 +38,13 @@ def aws_credentials():
     os.environ['AWS_SESSION_TOKEN'] = 'testing'
     os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
 
+@pytest.fixture(scope='function')
+def s3(aws_credentials):
+    with mock_s3():
+        s3 = boto3.client("s3", region_name='us-east-1')
+        # s3.create_bucket(Bucket = FileModel.bucket_name)
+        yield s3
+    
 class TestTables(TestJkolyer):
     def test_create_tables(self):
         BaseModel.create_tables()
@@ -89,8 +86,8 @@ class TestFileModel(TestJkolyer):
         
         cursor.close()
 
-    @mock_s3
-    def test_file_upload(self):
+    # @mock_s3
+    def test_file_upload(self, s3):
         conn = boto3.resource('s3', region_name='us-east-1')
         conn.create_bucket(Bucket=FileModel.bucket_name)
                 
@@ -112,4 +109,3 @@ class TestFileModel(TestJkolyer):
         batch = BatchJobModel.query_latest()
         batch.upload_files()
 
-        
