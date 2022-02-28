@@ -283,25 +283,23 @@ class BatchJobModel(BaseModel):
         return results
         
 
-    def upload_files(self):
+    def file_iterator(self):
+        cursor = self.db_conn.cursor()
         page_num = 0
         page_size = 10
-        
-        cursor = self.db_conn.cursor()
         try:
             while True:
                 results = self._fetch_files(cursor, page_num, page_size)
                 if len(results) == 0: break
-                
+
                 page_num += 1
                 for result in results:
                     model = FileModel(result)
                     logger.debug(f"id = {model.id}")
-                    model.start_upload(cursor)
-        
+                    yield model, cursor
+                    
         except sqlite3.Error as error:
             logger.error(f"Error running sql: {error}")
         finally:
             cursor.close()
-        return 
     

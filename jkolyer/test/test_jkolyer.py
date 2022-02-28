@@ -86,26 +86,25 @@ class TestFileModel(TestJkolyer):
         
         cursor.close()
 
-    # @mock_s3
     def test_file_upload(self, s3):
         model = FileModel.fetch_record(UploadStatus.PENDING.value)
         assert model is not None
         cursor = FileModel.db_conn.cursor()
         model.start_upload(cursor)
-        cursor.close()
-
         assert model.status == UploadStatus.COMPLETED.value
         model2 = FileModel.fetch_record(UploadStatus.COMPLETED.value)
         assert model2 is not None
         assert model2.id == model.id
+        cursor.close()
         
         file_contents = model.get_uploaded_file()
         assert file_contents is not None
         
-    @mock_s3
-    def test_batch_uploads(self):
-        conn = boto3.resource('s3', region_name='us-east-1')
-        conn.create_bucket(Bucket=FileModel.bucket_name)
+    def test_batch_uploads(self, s3):
         batch = BatchJobModel.query_latest()
-        batch.upload_files()
-
+        
+        for file_model, cursor in batch.file_iterator():
+            assert file_model.status == UploadStatus.PENDING.value
+            file_model.start_upload(cursor)
+            assert file_model.status == UploadStatus.COMPLETED.value
+        
