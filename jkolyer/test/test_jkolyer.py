@@ -42,7 +42,7 @@ def aws_credentials():
 def s3(aws_credentials):
     with mock_s3():
         s3 = boto3.client("s3", region_name='us-east-1')
-        # s3.create_bucket(Bucket = FileModel.bucket_name)
+        s3.create_bucket(Bucket = FileModel.bucket_name)
         yield s3
     
 class TestTables(TestJkolyer):
@@ -88,9 +88,6 @@ class TestFileModel(TestJkolyer):
 
     # @mock_s3
     def test_file_upload(self, s3):
-        conn = boto3.resource('s3', region_name='us-east-1')
-        conn.create_bucket(Bucket=FileModel.bucket_name)
-                
         model = FileModel.fetch_record(UploadStatus.PENDING.value)
         assert model is not None
         cursor = FileModel.db_conn.cursor()
@@ -105,7 +102,10 @@ class TestFileModel(TestJkolyer):
         file_contents = model.get_uploaded_file()
         assert file_contents is not None
         
-    def xtest_batch_uploads(self):
+    @mock_s3
+    def test_batch_uploads(self):
+        conn = boto3.resource('s3', region_name='us-east-1')
+        conn.create_bucket(Bucket=FileModel.bucket_name)
         batch = BatchJobModel.query_latest()
         batch.upload_files()
 

@@ -20,7 +20,6 @@ class Uploader:
         s3 = boto3.client('s3', region_name='us-east-1')
         s3.put_object(Bucket='mybucket', Key=self.name, Body=self.value)
                 
-    
     def upload_file(self, file_name, bucket, object_name=None):
         """Upload a file to an S3 bucket
         :param file_name: File to upload
@@ -39,6 +38,7 @@ class Uploader:
         except ClientError as err:
             logging.error(err)
             return False
+        
         return True
 
     
