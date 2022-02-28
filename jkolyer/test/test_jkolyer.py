@@ -3,6 +3,7 @@ import pytest
 import sqlite3
 import boto3
 from moto import mock_s3
+from threading import Thread
 import logging
 
 for name in logging.Logger.manager.loggerDict.keys():
@@ -100,11 +101,32 @@ class TestFileModel(TestJkolyer):
         file_contents = model.get_uploaded_file()
         assert file_contents is not None
         
-    def test_batch_uploads(self, s3):
+    def test_batch_uploads_sequential(self, s3):
         batch = BatchJobModel.query_latest()
         
         for file_model, cursor in batch.file_iterator():
             assert file_model.status == UploadStatus.PENDING.value
             file_model.start_upload(cursor)
             assert file_model.status == UploadStatus.COMPLETED.value
+        
+class TestAsyncFileModel(TestJkolyer):
+    
+    @classmethod
+    def setup_class(cls):
+        FileModel.bootstrap_table()
+        batch = BatchJobModel.query_latest()
+        batch.generate_file_records()
+
+    @pytest.mark.asyncio            
+    async def test_batch_uploads_parallel(self, s3):
+        # reset the file records
+        FileModel.bootstrap_table()
+        batch = BatchJobModel.query_latest()
+        batch.generate_file_records()
+        
+        await batch.async_upload_files()
+
+        for file_model, cursor in batch.file_iterator():
+            assert file_model.status == UploadStatus.COMPLETED.value
+
         

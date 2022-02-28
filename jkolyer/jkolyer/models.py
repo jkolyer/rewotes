@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import stat
+import asyncio
 from math import floor
 from datetime import datetime
 from pathlib import Path
@@ -283,23 +284,46 @@ class BatchJobModel(BaseModel):
         return results
         
 
-    def file_iterator(self):
-        cursor = self.db_conn.cursor()
+    def file_iterator(self, cursor=None):
+        _cursor = cursor if cursor else self.db_conn.cursor()
+
         page_num = 0
         page_size = 10
         try:
             while True:
-                results = self._fetch_files(cursor, page_num, page_size)
+                results = self._fetch_files(_cursor, page_num, page_size)
                 if len(results) == 0: break
 
                 page_num += 1
                 for result in results:
                     model = FileModel(result)
-                    logger.debug(f"id = {model.id}")
-                    yield model, cursor
+                    # logger.debug(f"id = {model.id}")
+                    yield model, _cursor
                     
         except sqlite3.Error as error:
             logger.error(f"Error running sql: {error}")
         finally:
-            cursor.close()
-    
+            if cursor is None:
+                _cursor.close
+
+    async def async_upload_files(self):
+        cursor = self.db_conn.cursor()
+        max_concur = 4
+        sem = asyncio.Semaphore(max_concur)
+
+        async def task_wrapper(model, cursor):
+            # logger.debug(f"task_wrapper:  model = {model.file_path}")
+            try:
+                model.start_upload(cursor)
+            finally:
+                sem.release()
+                
+        for model, cursor in self.file_iterator(cursor):
+            await sem.acquire()
+            asyncio.create_task(task_wrapper(model, cursor))
+
+        # wait for all tasks to complete
+        for i in range(max_concur):
+            await sem.acquire()
+        cursor.close()
+        
