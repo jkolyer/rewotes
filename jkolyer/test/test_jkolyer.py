@@ -1,7 +1,7 @@
 import pytest
 import sqlite3
 from jkolyer.orchestration import Orchestration
-from jkolyer.models import BaseModel, BatchJobModel, FileModel, UploadJobModel
+from jkolyer.models import BaseModel, BatchJobModel, FileModel
 
 
 class TestJkolyer(object):
@@ -28,10 +28,6 @@ class TestTables(TestJkolyer):
         result = BaseModel.run_sql_query(sql)
         assert result[0][0] == FileModel.table_name()
         
-        sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{UploadJobModel.table_name()}'"
-        result = BaseModel.run_sql_query(sql)
-        assert result[0][0] == UploadJobModel.table_name()
-
         
 class TestBatchJob(TestJkolyer):
     
@@ -49,12 +45,7 @@ class TestFileModel(TestJkolyer):
     
     @classmethod
     def setup_class(cls):
-        cursor = BaseModel.db_conn.cursor()
-        cursor.execute(f"DROP TABLE IF EXISTS {FileModel.table_name()}")
-        BaseModel.db_conn.commit()
-        for sql in FileModel.create_table_sql(): cursor.execute(sql)
-        BaseModel.db_conn.commit()
-        cursor.close()
+        FileModel.bootstrap_table()
 
     def test_create_file_records(self):
         batch = BatchJobModel.query_latest()
@@ -70,4 +61,8 @@ class TestFileModel(TestJkolyer):
         assert result[0][0] == file_count
         
         cursor.close()
+
+    def test_file_uploads(self):
+        batch = BatchJobModel.query_latest()
+        batch.upload_files()
         

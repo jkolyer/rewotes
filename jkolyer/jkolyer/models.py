@@ -15,6 +15,12 @@ def dateSinceEpoch(mydate=datetime.now()):
     result = (mydate - datetime(1970, 1, 1)).total_seconds()
     return floor(result)
 
+class UploadStatus(Enum):
+    PENDING = 1
+    IN_PROGRESS = 2
+    COMPLETED = 3
+    FAILED = 4
+
 class BaseModel:
     db_name = 'parallel-file-upload.db'
     db_conn = sqlite3.connect(db_name)
@@ -27,10 +33,6 @@ class BaseModel:
             for sql in sqls: cursor.execute(sql)
             self.db_conn.commit()
             
-            sqls = UploadJobModel.create_table_sql()
-            for sql in sqls: cursor.execute(sql)
-            self.db_conn.commit()
-
             sqls = BatchJobModel.create_table_sql()
             for sql in sqls: cursor.execute(sql)
             self.db_conn.commit()
@@ -78,28 +80,44 @@ class FileModel(BaseModel):
                     file_size INTEGER,
                     last_modified INTEGER,
                     permissions TEXT,
-                    file_path TEXT
+                    file_path TEXT,
+                    status INTEGER
                   );
                 """.format(
                     table_name=cls.table_name(),
                 ),
                 f"CREATE UNIQUE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(file_path)",
-                ]
+                f"CREATE INDEX IF NOT EXISTS IdxStatus ON {cls.table_name()}(status);"]
 
-    def __init__(self, file_size, last_modified, permissions, file_path):
-        self.id = cuid()
-        self.created_at = dateSinceEpoch()
-        self.file_size = file_size
-        self.last_modified = last_modified
-        self.permissions = permissions
-        self.file_path = file_path
+    @classmethod
+    def bootstrap_table(cls):
+        cursor = cls.db_conn.cursor()
+        try:
+            cursor.execute(f"DROP TABLE IF EXISTS {cls.table_name()}")
+            cls.db_conn.commit()
+            for sql in cls.create_table_sql(): cursor.execute(sql)
+            cls.db_conn.commit()
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; ${sql}")
+        finally:
+            cursor.close()
+
+    def __init__(self, *args):
+        tpl = args[0]
+        self.id = tpl[0]
+        self.created_at = tpl[1]
+        self.file_size = tpl[2]
+        self.last_modified = tpl[3]
+        self.permissions = tpl[4]
+        self.file_path = tpl[5]
+        self.status = tpl[6]
 
     def save(self, cursor):
         sql = """
             INSERT OR IGNORE INTO {table_name}
-                  ( id, created_at, file_size, last_modified, permissions, file_path )
+                  ( id, created_at, file_size, last_modified, permissions, file_path, status )
                   VALUES 
-                  ( '{id}', {created_at}, {file_size}, {last_modified}, '{permissions}', '{file_path}' )
+                  ( '{id}', {created_at}, {file_size}, {last_modified}, '{permissions}', '{file_path}', {status} )
                 """.format(
                     table_name=self.__class__.table_name(),
                     id=self.id,
@@ -107,42 +125,31 @@ class FileModel(BaseModel):
                     file_size=self.file_size,
                     last_modified=self.last_modified,
                     permissions=self.permissions,
-                    file_path=self.file_path
+                    file_path=self.file_path,
+                    status=self.status
                 )
         cursor.execute(sql)
+
+    def _update_status(self, cursor):
+        sql = f"UPDATE {self.table_name()} SET status = {self.status} WHERE id = '{self.id}'"
+        cursor.execute(sql)
+
+    def start_upload(self, cursor):
+        self.status = UploadStatus.IN_PROGRESS.value
+        self._update_status(cursor)
+
+    def upload_complete(self, cursor):
+        self.status = UploadStatus.IN_PROGRESS.value
+        self._update_status(cursor)
+
+    def upload_failed(self, cursor):
+        self.status = UploadStatus.IN_PROGRESS.value
+        self._update_status(cursor)
+
+    def perform_upload(self, cursor):
+        self.start_upload(cursor)
+
         
-class UploadJobModel(BaseModel):
-    @classmethod
-    def table_name(cls):
-        return 'UploadJob'
-    
-    @classmethod
-    def create_table_sql(cls):
-        return ["""
-        CREATE TABLE IF NOT EXISTS {table_name}
-                  ( id TEXT PRIMARY KEY, 
-                    batch_id TEXT,
-                    file_id TEXT,
-                    status INTEGER,
-                    created_at INTEGER,
-                    FOREIGN KEY (file_id) REFERENCES {file_table_name}(id),
-                    FOREIGN KEY (batch_id) REFERENCES {batch_table_name}(id)
-                  );
-               """.format(
-                   table_name=cls.table_name(),
-                   file_table_name=FileModel.table_name(),
-                   batch_table_name=BatchJobModel.table_name()
-               ),
-                f"CREATE INDEX IF NOT EXISTS IdxJobFile ON {cls.table_name()}(file_id);",
-                f"CREATE INDEX IF NOT EXISTS IdxBatch ON {cls.table_name()}(batch_id);",
-                f"CREATE INDEX IF NOT EXISTS IdxStatus ON {cls.table_name()}(status);"]
-
-class BatchStatus(Enum):
-    PENDING = 1
-    IN_PROGRESS = 2
-    COMPLETED = 3
-    FAILED = 4
-
 class BatchJobModel(BaseModel):
 
     def __init__(self, props):
@@ -165,8 +172,7 @@ class BatchJobModel(BaseModel):
         root_dir TEXT
         );
         """.format(table_name=cls.table_name()),
-                f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(created_at);",
-                ]
+                f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(created_at);",]
 
     @classmethod
     def new_record_sql(cls, root_dir):
@@ -178,7 +184,7 @@ class BatchJobModel(BaseModel):
                 """.format(
                     table_name=cls.table_name(),
                     idval=cuid(),
-                    status=BatchStatus.PENDING.value,
+                    status=UploadStatus.PENDING.value,
                     created_at=dateSinceEpoch(),
                     root_dir=root_dir,)
     
@@ -190,7 +196,7 @@ class BatchJobModel(BaseModel):
             result = cursor.execute(sql).fetchall()
             if len(result) == 0: return None
             
-            logger.debug(f"BatchJobModel.query_latest: {result}")
+            # logger.debug(f"BatchJobModel.query_latest: {result}")
             model = BatchJobModel(result[0])
             return model
         
@@ -209,12 +215,21 @@ class BatchJobModel(BaseModel):
                 fmode = fstat.st_mode
                 if stat.S_ISDIR(fmode): continue
 
-                logger.debug(file_path)
+                # logger.debug(file_path)
                 file_size = fstat.st_size
                 last_modified = fstat.st_mtime
                 permissions = stat.S_IMODE(fmode)
+                status = UploadStatus.PENDING.value
 
-                file_obj = FileModel(file_size, last_modified, permissions, file_path)
+                file_obj = FileModel((
+                    cuid(),
+                    dateSinceEpoch(),
+                    file_size,
+                    last_modified,
+                    permissions,
+                    file_path,
+                    status
+                ))
                 file_obj.save(cursor)
                 self.db_conn.commit()
                 
@@ -225,4 +240,27 @@ class BatchJobModel(BaseModel):
         finally:
             cursor.close()
         return file_count
+
+    def upload_files(self):
+        sql = """
+        SELECT * FROM {table_name} 
+        WHERE status = {status} 
+        ORDER BY file_size ASC
+        """.format(
+            table_name=FileModel.table_name(),
+            status=UploadStatus.PENDING.value
+        )
+        cursor = self.db_conn.cursor()
+        try:
+            result = cursor.execute(sql).fetchone()
+            if len(result) == 0: return
+
+            model = FileModel(result)
+            model.perform_upload(cursor)
+        
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; ${sql}")
+        finally:
+            cursor.close()
+        return 
     
