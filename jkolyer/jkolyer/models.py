@@ -241,25 +241,45 @@ class BatchJobModel(BaseModel):
             cursor.close()
         return file_count
 
-    def upload_files(self):
+    def _fetch_files(self, cursor, page_num, page_size):
+        offset = page_num * page_size
+        
+        # paginate without using sql OFFSET https://gist.github.com/ssokolow/262503
         sql = """
         SELECT * FROM {table_name} 
-        WHERE status = {status} 
+        WHERE status = {status} AND 
+        (id NOT IN ( SELECT id FROM {table_name} ORDER BY file_size ASC LIMIT {offset} ))
         ORDER BY file_size ASC
+        LIMIT {page_size}
         """.format(
-            table_name=FileModel.table_name(),
-            status=UploadStatus.PENDING.value
+            table_name = FileModel.table_name(),
+            status = UploadStatus.PENDING.value,
+            offset = offset,
+            page_size = page_size
         )
+        results = cursor.execute(sql).fetchall()
+        logger.debug(f"_fetch_files({len(results)}):  {sql}")
+        return results
+        
+
+    def upload_files(self):
+        page_num = 0
+        page_size = 10
+        
         cursor = self.db_conn.cursor()
         try:
-            result = cursor.execute(sql).fetchone()
-            if len(result) == 0: return
-
-            model = FileModel(result)
-            model.perform_upload(cursor)
+            while True:
+                results = self._fetch_files(cursor, page_num, page_size)
+                # breakpoint()
+                if len(results) == 0: break
+                page_num += 1
+                for result in results:
+                    model = FileModel(result)
+                    logger.debug(f"id = {model.id}")
+                    model.perform_upload(cursor)
         
         except sqlite3.Error as error:
-            logger.error(f"Error running sql: {error}; ${sql}")
+            logger.error(f"Error running sql: {error}")
         finally:
             cursor.close()
         return 
