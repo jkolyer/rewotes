@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 import boto3
 from botocore.exceptions import ClientError
 import logging
+from moto import mock_s3
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -34,9 +35,13 @@ class S3Uploader(Uploader):
     : client: instance provided by `boto3` for S3
     """
 
-    def __init__(self):
+    def __init__(self, in_test=False):
         """Instance constructor.  Sets `client` property
         """
+        if in_test:
+            s3_mock = mock_s3()
+            s3_mock.start()
+                
         self.client = boto3.client("s3")
     
     def get_uploaded_data(self, bucket_name, key):

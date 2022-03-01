@@ -48,7 +48,7 @@ def aws_credentials():
 def s3(aws_credentials):
     with mock_s3():
         s3 = boto3.client("s3", region_name='us-east-1')
-        s3.create_bucket(Bucket = FileModel.bucket_name)
+        s3.create_bucket(Bucket=FileModel.bucket_name)
         yield s3
     
 class TestTables(TestJkolyer):
@@ -140,9 +140,8 @@ class TestParallelFileModel(TestJkolyer):
         batch = BatchJobModel.query_latest()
         batch.reset_file_status()
 
-    def xtest_batch_uploads_parallel(self, s3):
+    def test_batch_uploads_parallel(self, s3):
         batch = BatchJobModel.query_latest()
-        for file_model, cursor in batch.file_iterator():
-            assert file_model.status == UploadStatus.COMPLETED.value
+        parallel_upload_files(batch)
 
         

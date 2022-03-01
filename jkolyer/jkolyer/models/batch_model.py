@@ -7,6 +7,7 @@ import stat
 from pathlib import Path
 import sqlite3
 import asyncio
+import json
 from multiprocessing import Process, Queue, Semaphore, Value
 from cuid import cuid
 import logging
@@ -14,6 +15,16 @@ import time
 
 from jkolyer.models.base_model import BaseModel, UploadStatus, dateSinceEpoch
 from jkolyer.models.file_model import FileModel
+from jkolyer.uploader import S3Uploader
+
+for name in logging.Logger.manager.loggerDict.keys():
+    if ('boto' in name) or \
+       ('urllib3' in name) or \
+       ('boto3' in name) or \
+       ('botocore' in name) or \
+       ('nose' in name):
+        logging.getLogger(name).setLevel(logging.CRITICAL)
+logging.getLogger('s3transfer').setLevel(logging.CRITICAL)                    
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -232,20 +243,24 @@ class BatchJobModel(BaseModel):
 
         
 def upload(file_dto_string, queue, sema):
-    print(f"*** process worker {file_dto_string} starting doing business")
+    logger.debug(f"*** process worker {file_dto_string} starting doing business")
     file_dto = json.loads(file_dto_string)
     
-    uploader = S3Uploader()
+    uploader = S3Uploader(True)
+    uploader.client.create_bucket(Bucket=FileModel.bucket_name)
+    
     completed = uploader.upload_file(
-        file_dto.file_path, file_dto.bucket_name, file_dto.id
+        file_dto["file_path"], file_dto["bucket_name"], file_dto["id"]
     )
     if completed:
         completed = uploader.upload_metadata(
-            json.dumps(file_dto.metadata), file_dto.bucket_name, f"metadata-{file_dto.id}"
+            json.dumps(file_dto["metadata"]), file_dto["bucket_name"], f"metadata-{file_dto['id']}"
         )
         
-    file_dto.status = UploadStatus.COMPLETED.value if completed else UploadStatus.FAILED.value
+    file_dto["status"] = UploadStatus.COMPLETED.value if completed else UploadStatus.FAILED.value
     file_dto_string = json.dumps(file_dto)
+    
+    logger.debug(f"*** upload result = {file_dto_string}")
     queue.put(file_dto_string)
     
     # `release` will add 1 to `sema`, allowing other 
@@ -262,22 +277,27 @@ def parallel_upload_files(batch_model):
     file_models_progress = {}
 
     def handle_queue():
-        cursor = BatchModel.db_conn.cursor()
+        cursor = BatchJobModel.db_conn.cursor()
         try: 
             while not queue.empty():
                 dto = queue.get()
-                fmodel = files_models_progress[dto.id]
+                dto = json.loads(dto)
+                fmodel = file_models_progress[dto["id"]]
                 try:
-                    if dto.status == UploadStatus.COMPLETED.value:
+                    if dto["status"] == UploadStatus.COMPLETED.value:
                         fmodel.upload_complete(cursor)
-                    elif dto.status == UploadStatus.FAILED.value:
+                    elif dto["status"] == UploadStatus.FAILED.value:
                         fmodel.upload_failed(cursor)
+                        
+                    del file_models_progress[dto["id"]]
+                    logger.debug(f"handling {file_model.id}:  {dto['status']}")
+                    
                 except sqlite3.Error as error:
                     logger.error(f"Error running sql: {error}")
         finally:
             cursor.close()
 
-    for file_model, _cursor in batch_model.file_iterator(cursor):
+    for file_model, _cursor in batch_model.file_iterator():
         # https://stackoverflow.com/questions/20886565/using-multiprocessing-\
         #         process-with-a-maximum-number-of-simultaneous-processes
         # once 8 processes are running, the following `acquire` call
@@ -288,6 +308,7 @@ def parallel_upload_files(batch_model):
         sema.acquire()
 
         file_models_progress[file_model.id] = file_model
+        logger.debug(f"processing {file_model.id}")
         
         dtoStr = file_model.parallel_dto_string()
         proc = Process(target=upload, args=(dtoStr, queue, sema))
@@ -302,4 +323,3 @@ def parallel_upload_files(batch_model):
         
     handle_queue()
 
-        
