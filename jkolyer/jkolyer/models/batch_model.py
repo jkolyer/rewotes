@@ -7,7 +7,7 @@ import stat
 from pathlib import Path
 import sqlite3
 import asyncio
-from multiprocessing import Process, Semaphore, Value
+from multiprocessing import Process, Queue, Semaphore, Value
 from cuid import cuid
 import logging
 import time
@@ -231,14 +231,10 @@ class BatchJobModel(BaseModel):
         cursor.close()
 
         
-def f(file_dto_value, sema):
+def upload(file_dto_string, queue, sema):
     print(f"*** process worker {file_dto_string} starting doing business")
-    file_dto_string = file_dto_value.value
     file_dto = json.loads(file_dto_string)
     
-    # simulate a time-consuming task by sleeping
-    # time.sleep(5)
-
     uploader = S3Uploader()
     completed = uploader.upload_file(
         file_dto.file_path, file_dto.bucket_name, file_dto.id
@@ -250,7 +246,7 @@ def f(file_dto_value, sema):
         
     file_dto.status = UploadStatus.COMPLETED.value if completed else UploadStatus.FAILED.value
     file_dto_string = json.dumps(file_dto)
-    file_dto_value.value = file_dto_string
+    queue.put(file_dto_string)
     
     # `release` will add 1 to `sema`, allowing other 
     # processes blocked on it to continue
@@ -261,22 +257,49 @@ def parallel_upload_files(batch_model):
     total_task_num = 1000
     sema = Semaphore(concurrency)
     all_processes = []
+    queue = Queue()
+    """temporary store of file_models in progress"""
+    file_models_progress = {}
+
+    def handle_queue():
+        cursor = BatchModel.db_conn.cursor()
+        try: 
+            while not queue.empty():
+                dto = queue.get()
+                fmodel = files_models_progress[dto.id]
+                try:
+                    if dto.status == UploadStatus.COMPLETED.value:
+                        fmodel.upload_complete(cursor)
+                    elif dto.status == UploadStatus.FAILED.value:
+                        fmodel.upload_failed(cursor)
+                except sqlite3.Error as error:
+                    logger.error(f"Error running sql: {error}")
+        finally:
+            cursor.close()
 
     for file_model, _cursor in batch_model.file_iterator(cursor):
-        # https://stackoverflow.com/questions/20886565/using-multiprocessing-process-with-a-maximum-number-of-simultaneous-processes
+        # https://stackoverflow.com/questions/20886565/using-multiprocessing-\
+        #         process-with-a-maximum-number-of-simultaneous-processes
         # once 8 processes are running, the following `acquire` call
         # will block the main process since `sema` has been reduced
         # to 0. This loop will continue only after one or more 
         # previously created processes complete.
+        
         sema.acquire()
+
+        file_models_progress[file_model.id] = file_model
         
         dtoStr = file_model.parallel_dto_string()
-        dtoValue = Value('s', dtoStr)
-        
-        proc = Process(target=f, args=(dtoValue, sema))
+        proc = Process(target=upload, args=(dtoStr, queue, sema))
         all_processes.append(proc)
         proc.start()
+
+        handle_queue()
 
     # inside main process, wait for all processes to finish
     for p in all_processes:
         p.join()
+        
+    handle_queue()
+
+        

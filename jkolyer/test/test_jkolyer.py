@@ -9,7 +9,6 @@ import logging
 for name in logging.Logger.manager.loggerDict.keys():
     if ('boto' in name) or \
        ('urllib3' in name) or \
-       ('s3transfer' in name) or \
        ('boto3' in name) or \
        ('botocore' in name) or \
        ('nose' in name):
@@ -17,7 +16,7 @@ for name in logging.Logger.manager.loggerDict.keys():
 logging.getLogger('s3transfer').setLevel(logging.CRITICAL)                    
 
 from jkolyer.models.base_model import BaseModel, UploadStatus
-from jkolyer.models.batch_model import BatchJobModel
+from jkolyer.models.batch_model import BatchJobModel, parallel_upload_files
 from jkolyer.models.file_model import FileModel
 
 class TestJkolyer(object):
@@ -123,17 +122,26 @@ class TestAsyncFileModel(TestJkolyer):
     @classmethod
     def setup_class(cls):
         batch = BatchJobModel.query_latest()
+        # reset the file records
         batch.reset_file_status()
 
     @pytest.mark.asyncio            
-    async def test_batch_uploads_parallel(self, s3):
-        # reset the file records
-        FileModel.bootstrap_table()
+    async def test_batch_uploads_async(self, s3):
         batch = BatchJobModel.query_latest()
-        batch.generate_file_records()
-        
         await batch.async_upload_files()
 
+        for file_model, cursor in batch.file_iterator():
+            assert file_model.status == UploadStatus.COMPLETED.value
+
+class TestParallelFileModel(TestJkolyer):
+    
+    @classmethod
+    def setup_class(cls):
+        batch = BatchJobModel.query_latest()
+        batch.reset_file_status()
+
+    def xtest_batch_uploads_parallel(self, s3):
+        batch = BatchJobModel.query_latest()
         for file_model, cursor in batch.file_iterator():
             assert file_model.status == UploadStatus.COMPLETED.value
 
