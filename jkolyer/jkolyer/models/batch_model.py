@@ -1,3 +1,7 @@
+"""BatchJobModel: the data model for the BatchJob database table.
+
+Provides SQL wrapper around upload status for a set of files.
+"""
 import os
 import stat
 from pathlib import Path
@@ -16,23 +20,10 @@ logging.basicConfig(level=logging.DEBUG)
         
 class BatchJobModel(BaseModel):
 
-    def __init__(self, props):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
-        """
-        self.id = props[0]
-        self.status = props[1]
-        self.created_at = props[2]
-        self.root_dir = props[3]
-
     @classmethod
     def table_name(cls):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Returns the SQL table name 'BatchJob'
+        :return: string 
         """
         return 'BatchJob'
     
@@ -53,10 +44,9 @@ class BatchJobModel(BaseModel):
 
     @classmethod
     def new_record_sql(cls, root_dir):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Provides the SQL for creating a new record with default values.
+        :param root_dir: the file directories root path
+        :return: string SQL INSERT statement
         """
         return """
         INSERT INTO {table_name}
@@ -72,10 +62,8 @@ class BatchJobModel(BaseModel):
     
     @classmethod
     def query_latest(cls):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Fetches the most recent record from the database
+        :return: BatchModel: latest instance or None
         """
         sql = f"SELECT * FROM {cls.table_name()} ORDER BY created_at DESC LIMIT 1"
         cursor = cls.db_conn.cursor()
@@ -93,11 +81,20 @@ class BatchJobModel(BaseModel):
             cursor.close()
         return None
 
+    def __init__(self, props):
+        """Instance constructor, setting table properties
+        :param args: tuple of values ordered as in create table script
+        """
+        self.id = props[0]
+        self.status = props[1]
+        self.created_at = props[2]
+        self.root_dir = props[3]
+
     def generate_file_records(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Loads all files from receiver's `root_dir` and 
+           creates a `FileModel` instance for each,
+           which then saves a new database record.
+        :return: int: the count of file records created
         """
         cursor = self.db_conn.cursor()
         file_count = 0
@@ -134,10 +131,12 @@ class BatchJobModel(BaseModel):
         return file_count
 
     def _fetch_files(self, cursor, page_num, page_size):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Convenience method for retrieving a page of database
+           records for `FileModel`.  Orders by `file_size` (ascending).
+        :param cursor: used for SQL execution
+        :param page_num: page number for query offset
+        :param page_size: records per page
+        :return: tuple[]: an array of tuples for FileModel
         """
         offset = page_num * page_size
         
@@ -145,7 +144,10 @@ class BatchJobModel(BaseModel):
         sql = """
         SELECT * FROM {table_name} 
         WHERE status = {status} AND 
-        (id NOT IN ( SELECT id FROM {table_name} ORDER BY file_size ASC LIMIT {offset} ))
+        (id NOT IN ( 
+           SELECT id FROM {table_name} 
+           ORDER BY file_size ASC LIMIT {offset}
+        ))
         ORDER BY file_size ASC
         LIMIT {page_size}
         """.format(
@@ -159,10 +161,10 @@ class BatchJobModel(BaseModel):
         
 
     def file_iterator(self, cursor=None):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Generator method for iterating over a page of `FileModel` data.
+           Yields to caller with model instance and cursor. 
+        :param cursor: for SQL execution; creates cursor if not provided
+        :return: None
         """
         _cursor = cursor if cursor else self.db_conn.cursor()
 
@@ -182,14 +184,14 @@ class BatchJobModel(BaseModel):
         except sqlite3.Error as error:
             logger.error(f"Error running sql: {error}")
         finally:
+            """only close the cursor if created in this method"""
             if cursor is None:
                 _cursor.close
 
     def reset_file_status(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Resets all the `FileModel` status values to `UploadStatus.PENDING`.
+           Useful for testing or restarting a previous batch upload.
+        :return: None
         """
         cursor = self.db_conn.cursor()
         try:
@@ -202,10 +204,9 @@ class BatchJobModel(BaseModel):
             cursor.close
         
     async def async_upload_files(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Performs asynchronous file upload across all pending `FileModel` instances.
+           Uses `asyncio` module.  Maximum 8 concurrent jobs.  
+        :return: None
         """
         cursor = self.db_conn.cursor()
         max_concur = 8

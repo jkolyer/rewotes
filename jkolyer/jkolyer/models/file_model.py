@@ -75,7 +75,7 @@ class FileModel(BaseModel):
         return None
 
     def __init__(self, *args):
-        """Class constructor, setting table properties, and local `S3Uploader` instance.
+        """Instance constructor, setting table properties, and local `S3Uploader` instance.
         :param args: tuple of values ordered as in create table script
         """
         tpl = args[0]
