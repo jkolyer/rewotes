@@ -157,9 +157,9 @@ class BatchJobModel(BaseModel):
             finally:
                 sem.release()
                 
-        for model, cursor in self.file_iterator(cursor):
+        for model, _cursor in self.file_iterator(cursor):
             await sem.acquire()
-            asyncio.create_task(task_wrapper(model, cursor))
+            asyncio.create_task(task_wrapper(model, _cursor))
 
         # wait for all tasks to complete
         for i in range(max_concur):

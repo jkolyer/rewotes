@@ -1,3 +1,14 @@
+""" Base model class for 
+
+SUMMARY
+
+Args:
+    name (type): describe
+    name (type): describe
+
+Returns:
+    type: describe
+"""
 from abc import ABC, abstractmethod
 import sqlite3
 from datetime import datetime
@@ -67,4 +78,3 @@ class BaseModel(ABC):
 
     def __init__(self):
         pass
-
