@@ -7,11 +7,16 @@ from threading import Thread
 import logging
 
 for name in logging.Logger.manager.loggerDict.keys():
-    if ('boto' in name) or ('urllib3' in name) or ('s3transfer' in name) or ('boto3' in name) or ('botocore' in name) or ('nose' in name):
+    if ('boto' in name) or \
+       ('urllib3' in name) or \
+       ('s3transfer' in name) or \
+       ('boto3' in name) or \
+       ('botocore' in name) or \
+       ('nose' in name):
         logging.getLogger(name).setLevel(logging.CRITICAL)
 logging.getLogger('s3transfer').setLevel(logging.CRITICAL)                    
 
-from jkolyer.models import BaseModel, BatchJobModel, FileModel, UploadStatus
+from jkolyer.models.models import BaseModel, BatchJobModel, FileModel, UploadStatus
 
 class TestJkolyer(object):
 
