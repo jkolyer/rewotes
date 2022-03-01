@@ -142,6 +142,8 @@ class TestParallelFileModel(TestJkolyer):
 
     def test_batch_uploads_parallel(self, s3):
         batch = BatchJobModel.query_latest()
-        parallel_upload_files(batch)
-
+        parallel_upload_files(batch, True)
+        
+        for file_model, cursor in batch.file_iterator():
+            assert file_model.status == UploadStatus.COMPLETED.value
         

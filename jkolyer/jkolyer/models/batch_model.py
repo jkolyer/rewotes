@@ -242,11 +242,10 @@ class BatchJobModel(BaseModel):
         cursor.close()
 
         
-def upload(file_dto_string, queue, sema):
-    logger.debug(f"*** process worker {file_dto_string} starting doing business")
+def upload(file_dto_string, queue, sema, mock_s3=False):
     file_dto = json.loads(file_dto_string)
     
-    uploader = S3Uploader(True)
+    uploader = S3Uploader(mock_s3)
     uploader.client.create_bucket(Bucket=FileModel.bucket_name)
     
     completed = uploader.upload_file(
@@ -260,14 +259,13 @@ def upload(file_dto_string, queue, sema):
     file_dto["status"] = UploadStatus.COMPLETED.value if completed else UploadStatus.FAILED.value
     file_dto_string = json.dumps(file_dto)
     
-    logger.debug(f"*** upload result = {file_dto_string}")
     queue.put(file_dto_string)
     
     # `release` will add 1 to `sema`, allowing other 
     # processes blocked on it to continue
     sema.release()
 
-def parallel_upload_files(batch_model):
+def parallel_upload_files(batch_model, mock_s3=False):
     concurrency = 8
     total_task_num = 1000
     sema = Semaphore(concurrency)
@@ -290,7 +288,6 @@ def parallel_upload_files(batch_model):
                         fmodel.upload_failed(cursor)
                         
                     del file_models_progress[dto["id"]]
-                    logger.debug(f"handling {file_model.id}:  {dto['status']}")
                     
                 except sqlite3.Error as error:
                     logger.error(f"Error running sql: {error}")
@@ -298,20 +295,15 @@ def parallel_upload_files(batch_model):
             cursor.close()
 
     for file_model, _cursor in batch_model.file_iterator():
-        # https://stackoverflow.com/questions/20886565/using-multiprocessing-\
-        #         process-with-a-maximum-number-of-simultaneous-processes
         # once 8 processes are running, the following `acquire` call
-        # will block the main process since `sema` has been reduced
-        # to 0. This loop will continue only after one or more 
-        # previously created processes complete.
-        
+        # will block the main process since `sema` has been reduced to 0
         sema.acquire()
 
         file_models_progress[file_model.id] = file_model
-        logger.debug(f"processing {file_model.id}")
+        # logger.debug(f"processing {file_model.id}")
         
         dtoStr = file_model.parallel_dto_string()
-        proc = Process(target=upload, args=(dtoStr, queue, sema))
+        proc = Process(target=upload, args=(dtoStr, queue, sema, mock_s3))
         all_processes.append(proc)
         proc.start()
 
