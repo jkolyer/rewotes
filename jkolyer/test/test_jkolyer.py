@@ -11,7 +11,6 @@ for name in logging.Logger.manager.loggerDict.keys():
         logging.getLogger(name).setLevel(logging.CRITICAL)
 logging.getLogger('s3transfer').setLevel(logging.CRITICAL)                    
 
-from jkolyer.orchestration import Orchestration
 from jkolyer.models import BaseModel, BatchJobModel, FileModel, UploadStatus
 
 class TestJkolyer(object):
