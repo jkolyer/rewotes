@@ -8,7 +8,7 @@ from pathlib import Path
 import sqlite3
 import asyncio
 import json
-from multiprocessing import Process, Queue, Semaphore, Value
+from multiprocessing import cpu_count, Process, Queue, Semaphore, Value
 from cuid import cuid
 import logging
 import time
@@ -242,7 +242,14 @@ class BatchJobModel(BaseModel):
         cursor.close()
 
         
-def upload(file_dto_string, queue, sema, mock_s3=False):
+def parallel_upload(file_dto_string, queue, sema, mock_s3=False):
+    """Perform upload command in multiprocessing mode
+    :param file_dto_string:  JSON-formatted string as FileModel dto
+    :param queue: inter-process queue to share upload results
+    :param sema: semaphora to limit number of active processes
+    :param mock_s3:  flag to manually override default `boto3` S3
+    :return: None
+    """
     file_dto = json.loads(file_dto_string)
     
     uploader = S3Uploader(mock_s3)
@@ -266,7 +273,14 @@ def upload(file_dto_string, queue, sema, mock_s3=False):
     sema.release()
 
 def parallel_upload_files(batch_model, mock_s3=False):
-    concurrency = 8
+    """Uploads files using multiprocessing.  To workaround limitations
+       in pytest, we passing in flag to override default `boto3` behavior.
+       Limits concurrent process count to `multiprocessing.cpu_count`.
+    :param batch_model: the BatchJobModel instance
+    :param mock_s3: dictates when to use mock_s3 module
+    :return: None
+    """
+    concurrency = cpu_count()
     total_task_num = 1000
     sema = Semaphore(concurrency)
     all_processes = []
@@ -275,6 +289,11 @@ def parallel_upload_files(batch_model, mock_s3=False):
     file_models_progress = {}
 
     def handle_queue():
+        """Handle data in the queue which is 
+           populated by the `parallel_upload` function
+           run in separate process.  Here we update database
+           using `FileModel` state change methods.
+        """
         cursor = BatchJobModel.db_conn.cursor()
         try: 
             while not queue.empty():
@@ -287,7 +306,7 @@ def parallel_upload_files(batch_model, mock_s3=False):
                     elif dto["status"] == UploadStatus.FAILED.value:
                         fmodel.upload_failed(cursor)
                         
-                    del file_models_progress[dto["id"]]
+                    del file_models_progress[fmodel.id]
                     
                 except sqlite3.Error as error:
                     logger.error(f"Error running sql: {error}")
@@ -295,15 +314,15 @@ def parallel_upload_files(batch_model, mock_s3=False):
             cursor.close()
 
     for file_model, _cursor in batch_model.file_iterator():
-        # once 8 processes are running, the following `acquire` call
-        # will block the main process since `sema` has been reduced to 0
+        """once 8 processes are running, the following `acquire` call
+           will block the main process since `sema` has been reduced to 0
+        """
         sema.acquire()
 
         file_models_progress[file_model.id] = file_model
-        # logger.debug(f"processing {file_model.id}")
         
         dtoStr = file_model.parallel_dto_string()
-        proc = Process(target=upload, args=(dtoStr, queue, sema, mock_s3))
+        proc = Process(target=parallel_upload, args=(dtoStr, queue, sema, mock_s3))
         all_processes.append(proc)
         proc.start()
 

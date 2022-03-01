@@ -37,6 +37,8 @@ class S3Uploader(Uploader):
 
     def __init__(self, in_test=False):
         """Instance constructor.  Sets `client` property
+        :param in_test: workaround for overriding default `boto3`
+           in multiprocessing test scenarios
         """
         if in_test:
             s3_mock = mock_s3()
