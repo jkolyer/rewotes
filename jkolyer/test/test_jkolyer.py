@@ -16,7 +16,9 @@ for name in logging.Logger.manager.loggerDict.keys():
         logging.getLogger(name).setLevel(logging.CRITICAL)
 logging.getLogger('s3transfer').setLevel(logging.CRITICAL)                    
 
-from jkolyer.models.models import BaseModel, BatchJobModel, FileModel, UploadStatus
+from jkolyer.models.base_model import BaseModel, UploadStatus
+from jkolyer.models.batch_model import BatchJobModel
+from jkolyer.models.file_model import FileModel
 
 class TestJkolyer(object):
 
@@ -52,7 +54,8 @@ def s3(aws_credentials):
     
 class TestTables(TestJkolyer):
     def test_create_tables(self):
-        BaseModel.create_tables()
+        FileModel.create_tables()
+        BatchJobModel.create_tables()
         sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{FileModel.table_name()}'"
         result = BaseModel.run_sql_query(sql)
         assert result[0][0] == FileModel.table_name()
