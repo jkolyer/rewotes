@@ -23,7 +23,7 @@ class FileModel(BaseModel):
     @classmethod
     def create_table_sql(cls):
         """All the sql create scripts needed by file objects for tables and indices
-        :return: string[] sql statements
+        :return: string[] SQL statements
         """
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}

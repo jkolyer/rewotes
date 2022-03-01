@@ -1,13 +1,5 @@
-""" Base model class for 
-
-SUMMARY
-
-Args:
-    name (type): describe
-    name (type): describe
-
-Returns:
-    type: describe
+""" Abstract superclass for SQL data wrappers.  Includes
+    utility functions and classes.
 """
 from abc import ABC, abstractmethod
 import sqlite3
@@ -19,19 +11,15 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 def dateSinceEpoch(mydate=datetime.now()):
-    """Describe
-    :param name: describe
-    :param name: describe
-    :return: type describe
+    """Seconds between given date and epoch date 1970-01-01
+    :param mydate: source date or now
+    :return: float: seconds since epoch date
     """
     result = (mydate - datetime(1970, 1, 1)).total_seconds()
     return result
 
 class UploadStatus(Enum):
-    """Describe
-    :param name: describe
-    :param name: describe
-    :return: type describe
+    """Enumerator for upload status state changes.
     """
     FAILED = -1
     PENDING = 0
@@ -39,10 +27,10 @@ class UploadStatus(Enum):
     COMPLETED = 2
 
 class BaseModel(ABC):
-    """Describe
-    :param name: describe
-    :param name: describe
-    :return: type describe
+    """Holds class properties for database and object storage
+    :param db_name: SQLite database name
+    :param db_conn: database connection provided by `sqlite3`
+    :param bucket_name: object storage bucket name
     """
     db_name = 'parallel-file-upload.db'
     db_conn = sqlite3.connect(db_name)
@@ -51,19 +39,23 @@ class BaseModel(ABC):
     @classmethod
     @abstractmethod
     def table_name(cls):
+        """Name of the underlying SQL database table.
+        :return: string: receiver's database table name
+        """
         pass
 
     @classmethod
     @abstractmethod
     def create_table_sql(cls):
+        """All the sql create scripts needed by file objects for tables and indices
+        :return: string[] sql statements
+        """
         pass
     
     @classmethod
     def create_tables(cls):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Creates receiver's table in the database if they don't already exist.
+        :return: None
         """
         cursor = cls.db_conn.cursor()
         try:
@@ -77,10 +69,10 @@ class BaseModel(ABC):
 
     @classmethod
     def run_sql_query(cls, sql):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Performs the given SQL query on the database and returns
+           results as provided by the database.
+        :param sql: SQL statement
+        :return: tuple[]:  Array of tuples containing properties
         """
         cursor = cls.db_conn.cursor()
         try:
@@ -92,10 +84,9 @@ class BaseModel(ABC):
 
     @classmethod
     def run_sql_command(cls, sql):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Executes the given SQL on the database and commits.
+        :param sql: SQL statement
+        :return: None
         """
         cursor = cls.db_conn.cursor()
         try:
