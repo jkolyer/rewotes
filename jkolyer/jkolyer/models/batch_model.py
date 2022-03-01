@@ -29,8 +29,10 @@ class BatchJobModel(BaseModel):
     
     @classmethod
     def create_table_sql(cls):
-        """All the sql create scripts needed by batch upload for tables and indices
-        :return: string[] sql statements
+        """All the sql create scripts needed by file objects 
+           for tables and indices.  
+           Does nothing if the tables/indices already exist.
+        :return: string[] SQL statements
         """
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}

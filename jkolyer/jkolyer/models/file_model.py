@@ -22,28 +22,29 @@ class FileModel(BaseModel):
     
     @classmethod
     def create_table_sql(cls):
-        """All the sql create scripts needed by file objects for tables and indices
+        """All the sql create scripts needed by file objects 
+           for tables and indices.  
+           Does nothing if the tables/indices already exist.
         :return: string[] SQL statements
         """
-        return ["""
-        CREATE TABLE IF NOT EXISTS {table_name}
-                  ( id TEXT PRIMARY KEY, 
-                    created_at INTEGER,
-                    file_size INTEGER,
-                    last_modified INTEGER,
-                    permissions TEXT,
-                    file_path TEXT,
-                    status INTEGER
-                  );
-                """.format(
-                    table_name=cls.table_name(),
-                ),
-                f"CREATE UNIQUE INDEX IF NOT EXISTS IdxFilePath ON {cls.table_name()}(file_path)",
-                f"CREATE INDEX IF NOT EXISTS IdxStatus ON {cls.table_name()}(status);"]
+        sql = """CREATE TABLE IF NOT EXISTS {table_name}
+           ( id TEXT PRIMARY KEY, 
+            created_at INTEGER,
+            file_size INTEGER,
+            last_modified INTEGER,
+            permissions TEXT,
+            file_path TEXT,
+            status INTEGER
+            );""".format(table_name=cls.table_name())
+        return [sql,
+                f"CREATE UNIQUE INDEX IF NOT EXISTS IdxFilePath ON \
+                   {cls.table_name()}(file_path)",
+                f"CREATE INDEX IF NOT EXISTS IdxStatus ON \
+                   {cls.table_name()}(status);"]
 
     @classmethod
     def bootstrap_table(cls):
-        """Drops and recreates SQL tables using 
+        """Drops and recreates SQL tables
         :return: None
         """
         cursor = cls.db_conn.cursor()
