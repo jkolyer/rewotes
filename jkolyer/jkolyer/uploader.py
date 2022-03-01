@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import boto3
 from botocore.exceptions import ClientError
 import logging
-from moto import mock_s3
+from moto import mock_s3  # workaround for multiprocessing / pytest limits
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -50,7 +50,7 @@ class S3Uploader(Uploader):
         """Retrieves stored data (either file or metadata) for given key.
         :param bucket_name: bucket where the data was uploaded
         :param key: lookup key for the uploaded data
-        :return: FIXME
+        :return: bytes
         """
         response = self.client.get_object(Bucket=bucket_name, Key=key)
         contents = response["Body"].read()
