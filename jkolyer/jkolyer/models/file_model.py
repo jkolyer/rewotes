@@ -11,10 +11,20 @@ class FileModel(BaseModel):
 
     @classmethod
     def table_name(cls):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         return 'FileStat'
     
     @classmethod
     def create_table_sql(cls):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}
                   ( id TEXT PRIMARY KEY, 
@@ -33,6 +43,11 @@ class FileModel(BaseModel):
 
     @classmethod
     def bootstrap_table(cls):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         cursor = cls.db_conn.cursor()
         try:
             cursor.execute(f"DROP TABLE IF EXISTS {cls.table_name()}")
@@ -46,6 +61,11 @@ class FileModel(BaseModel):
 
     @classmethod
     def fetch_record(cls, status):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         sql = f"SELECT * FROM {FileModel.table_name()} WHERE status = {status} ORDER BY created_at DESC LIMIT 1"
         cursor = cls.db_conn.cursor()
         try:
@@ -58,6 +78,11 @@ class FileModel(BaseModel):
         return None
 
     def __init__(self, *args):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         tpl = args[0]
         self.id = tpl[0]
         self.created_at = tpl[1]
@@ -69,6 +94,11 @@ class FileModel(BaseModel):
         self.uploader = S3Uploader()
 
     def save(self, cursor):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         sql = """
             INSERT OR IGNORE INTO {table_name}
                   ( id, created_at, file_size, last_modified, permissions, file_path, status )
@@ -87,6 +117,11 @@ class FileModel(BaseModel):
         cursor.execute(sql)
 
     def metadata(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         data = {
             "file_size": self.file_size,
             "last_modified": self.last_modified,
@@ -95,11 +130,21 @@ class FileModel(BaseModel):
         return json.dumps(data)
 
     def _update_status(self, cursor):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         sql = f"UPDATE {self.table_name()} SET status = {self.status} WHERE id = '{self.id}'"
         cursor.execute(sql)
         self.db_conn.commit()
 
     def start_upload(self, cursor):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         self.status = UploadStatus.IN_PROGRESS.value
         self._update_status(cursor)
         
@@ -109,17 +154,37 @@ class FileModel(BaseModel):
         self.upload_complete(cursor) if completed  else self.upload_failed(cursor) 
 
     def upload_complete(self, cursor):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         self.status = UploadStatus.COMPLETED.value
         self._update_status(cursor)
 
     def upload_failed(self, cursor):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         self.status = UploadStatus.FAILED.value
         self._update_status(cursor)
 
     def get_uploaded_file(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         return self.uploader.get_uploaded_data(self.bucket_name, self.id)
 
     def get_uploaded_metadata(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         metadata = self.uploader.get_uploaded_data(self.bucket_name, f"metadata-{self.id}")
         return json.loads(metadata)
 

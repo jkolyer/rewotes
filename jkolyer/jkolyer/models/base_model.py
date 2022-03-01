@@ -19,16 +19,31 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 def dateSinceEpoch(mydate=datetime.now()):
+    """Describe
+    :param name: describe
+    :param name: describe
+    :return: type describe
+    """
     result = (mydate - datetime(1970, 1, 1)).total_seconds()
     return result
 
 class UploadStatus(Enum):
+    """Describe
+    :param name: describe
+    :param name: describe
+    :return: type describe
+    """
     PENDING = 1
     IN_PROGRESS = 2
     COMPLETED = 3
     FAILED = 4
 
 class BaseModel(ABC):
+    """Describe
+    :param name: describe
+    :param name: describe
+    :return: type describe
+    """
     db_name = 'parallel-file-upload.db'
     db_conn = sqlite3.connect(db_name)
     bucket_name = 'rewotes-pfu-bucket'
@@ -45,6 +60,11 @@ class BaseModel(ABC):
     
     @classmethod
     def create_tables(cls):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         cursor = cls.db_conn.cursor()
         try:
             sqls = cls.create_table_sql()
@@ -57,6 +77,11 @@ class BaseModel(ABC):
 
     @classmethod
     def run_sql_query(cls, sql):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         cursor = cls.db_conn.cursor()
         try:
             return cursor.execute(sql).fetchall()
@@ -67,6 +92,11 @@ class BaseModel(ABC):
 
     @classmethod
     def run_sql_command(cls, sql):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         cursor = cls.db_conn.cursor()
         try:
             cursor.execute(sql)

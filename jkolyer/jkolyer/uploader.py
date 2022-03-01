@@ -28,14 +28,29 @@ class Uploader(ABC):
 class S3Uploader(Uploader):
 
     def __init__(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         self.client = boto3.client("s3")
     
     def get_uploaded_data(self, bucket_name, fname):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         response = self.client.get_object(Bucket=bucket_name, Key=fname)
         contents = response["Body"].read()
         return contents
 
     def upload_metadata(self, metadata, bucket_name, name):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         try:
             self.client.put_object(Bucket=bucket_name, Key=name, Body=metadata)
         except ClientError as err:

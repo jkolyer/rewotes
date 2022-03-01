@@ -15,6 +15,11 @@ logging.basicConfig(level=logging.DEBUG)
 class BatchJobModel(BaseModel):
 
     def __init__(self, props):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         self.id = props[0]
         self.status = props[1]
         self.created_at = props[2]
@@ -22,10 +27,20 @@ class BatchJobModel(BaseModel):
 
     @classmethod
     def table_name(cls):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         return 'BatchJob'
     
     @classmethod
     def create_table_sql(cls):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}
         ( id TEXT PRIMARY KEY, 
@@ -38,6 +53,11 @@ class BatchJobModel(BaseModel):
 
     @classmethod
     def new_record_sql(cls, root_dir):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         return """
         INSERT INTO {table_name}
                   ( id, status, created_at, root_dir )
@@ -52,6 +72,11 @@ class BatchJobModel(BaseModel):
     
     @classmethod
     def query_latest(cls):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         sql = f"SELECT * FROM {cls.table_name()} ORDER BY created_at DESC LIMIT 1"
         cursor = cls.db_conn.cursor()
         try:
@@ -69,6 +94,11 @@ class BatchJobModel(BaseModel):
         return None
 
     def generate_file_records(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         cursor = self.db_conn.cursor()
         file_count = 0
         try:
@@ -104,6 +134,11 @@ class BatchJobModel(BaseModel):
         return file_count
 
     def _fetch_files(self, cursor, page_num, page_size):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         offset = page_num * page_size
         
         # paginate without using sql OFFSET https://gist.github.com/ssokolow/262503
@@ -124,6 +159,11 @@ class BatchJobModel(BaseModel):
         
 
     def file_iterator(self, cursor=None):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         _cursor = cursor if cursor else self.db_conn.cursor()
 
         page_num = 0
@@ -146,6 +186,11 @@ class BatchJobModel(BaseModel):
                 _cursor.close
 
     async def async_upload_files(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         cursor = self.db_conn.cursor()
         max_concur = 8
         sem = asyncio.Semaphore(max_concur)
@@ -167,6 +212,11 @@ class BatchJobModel(BaseModel):
         cursor.close()
 
     def reset_file_status(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         cursor = self.db_conn.cursor()
         try:
             sql = f"UPDATE {FileModel.table_name()} SET status = {UploadStatus.PENDING.value}"

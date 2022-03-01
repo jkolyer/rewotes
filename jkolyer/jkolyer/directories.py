@@ -8,10 +8,20 @@ import random
 
 class DirectoryTree:
     def __init__(self, root_dir, tree_depth):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         self.root_dir = root_dir
         self.tree_depth = tree_depth
 
     def _generate_file(self, filename):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         sizetypes = ['b','k','m']
         sizetype = sizetypes[random.randint(0,len(sizetypes)-1)]
         size = random.randint(8,100)
@@ -21,6 +31,11 @@ class DirectoryTree:
         process = subprocess.run(['mkfile', "-n", args, filename])
 
     def _generate(self, path, dir_level):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
         print(f"makedir: {path}")
         os.makedirs(path)
 
@@ -38,6 +53,11 @@ class DirectoryTree:
             self._generate(path, 1)
             
 def parse_cmd_line_arguments():
+    """Describe
+    :param name: describe
+    :param name: describe
+    :return: type describe
+    """
     parser = argparse.ArgumentParser(
         prog="tree",
         description="RP Tree, a directory tree generator",
