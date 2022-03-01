@@ -1,10 +1,12 @@
 import os
 import stat
+from pathlib import Path
 import sqlite3
 import asyncio
+from multiprocessing import Process, Semaphore, Value
 from cuid import cuid
-from pathlib import Path
 import logging
+import time
 
 from jkolyer.models.base_model import BaseModel, UploadStatus, dateSinceEpoch
 from jkolyer.models.file_model import FileModel
@@ -185,6 +187,22 @@ class BatchJobModel(BaseModel):
             if cursor is None:
                 _cursor.close
 
+    def reset_file_status(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
+        cursor = self.db_conn.cursor()
+        try:
+            sql = f"UPDATE {FileModel.table_name()} SET status = {UploadStatus.PENDING.value}"
+            cursor.execute(sql)
+            self.db_conn.commit()
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; {sql}")
+        finally:
+            cursor.close
+        
     async def async_upload_files(self):
         """Describe
         :param name: describe
@@ -202,30 +220,62 @@ class BatchJobModel(BaseModel):
             finally:
                 sem.release()
                 
-        for model, _cursor in self.file_iterator(cursor):
+        for file_model, _cursor in self.file_iterator(cursor):
             await sem.acquire()
-            asyncio.create_task(task_wrapper(model, _cursor))
+            asyncio.create_task(task_wrapper(file_model, _cursor))
 
         # wait for all tasks to complete
         for i in range(max_concur):
             await sem.acquire()
         cursor.close()
 
-    def reset_file_status(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
-        """
-        cursor = self.db_conn.cursor()
-        try:
-            sql = f"UPDATE {FileModel.table_name()} SET status = {UploadStatus.PENDING.value}"
-            cursor.execute(sql)
-            self.db_conn.commit()
-        except sqlite3.Error as error:
-            logger.error(f"Error running sql: {error}; {sql}")
-        finally:
-            cursor.close
         
+def f(file_dto_value, sema):
+    print(f"*** process worker {file_dto_string} starting doing business")
+    file_dto_string = file_dto_value.value
+    file_dto = json.loads(file_dto_string)
+    
+    # simulate a time-consuming task by sleeping
+    # time.sleep(5)
+
+    uploader = S3Uploader()
+    completed = uploader.upload_file(
+        file_dto.file_path, file_dto.bucket_name, file_dto.id
+    )
+    if completed:
+        completed = uploader.upload_metadata(
+            json.dumps(file_dto.metadata), file_dto.bucket_name, f"metadata-{file_dto.id}"
+        )
         
+    file_dto.status = UploadStatus.COMPLETED.value if completed else UploadStatus.FAILED.value
+    file_dto_string = json.dumps(file_dto)
+    file_dto_value.value = file_dto_string
+    
+    # `release` will add 1 to `sema`, allowing other 
+    # processes blocked on it to continue
+    sema.release()
+
+def parallel_upload_files(batch_model):
+    concurrency = 8
+    total_task_num = 1000
+    sema = Semaphore(concurrency)
+    all_processes = []
+
+    for file_model, _cursor in batch_model.file_iterator(cursor):
+        # https://stackoverflow.com/questions/20886565/using-multiprocessing-process-with-a-maximum-number-of-simultaneous-processes
+        # once 8 processes are running, the following `acquire` call
+        # will block the main process since `sema` has been reduced
+        # to 0. This loop will continue only after one or more 
+        # previously created processes complete.
+        sema.acquire()
         
+        dtoStr = file_model.parallel_dto_string()
+        dtoValue = Value('s', dtoStr)
+        
+        proc = Process(target=f, args=(dtoValue, sema))
+        all_processes.append(proc)
+        proc.start()
+
+    # inside main process, wait for all processes to finish
+    for p in all_processes:
+        p.join()

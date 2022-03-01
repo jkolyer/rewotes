@@ -33,10 +33,10 @@ class UploadStatus(Enum):
     :param name: describe
     :return: type describe
     """
-    PENDING = 1
-    IN_PROGRESS = 2
-    COMPLETED = 3
-    FAILED = 4
+    FAILED = -1
+    PENDING = 0
+    IN_PROGRESS = 1
+    COMPLETED = 2
 
 class BaseModel(ABC):
     """Describe

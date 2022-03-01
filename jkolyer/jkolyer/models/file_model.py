@@ -188,3 +188,19 @@ class FileModel(BaseModel):
         metadata = self.uploader.get_uploaded_data(self.bucket_name, f"metadata-{self.id}")
         return json.loads(metadata)
 
+    def parallel_dto_string(self):
+        """Describe
+        :param name: describe
+        :param name: describe
+        :return: type describe
+        """
+        dto = {
+            "id": self.id,
+            "file_path": self.file_path,
+            "metadata": self.metadata(),
+            "bucket_name": self.bucket_name,
+            "status": self.status,
+        }
+        return json.dumps(dto)
+
+
