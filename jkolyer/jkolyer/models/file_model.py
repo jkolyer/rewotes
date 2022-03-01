@@ -1,3 +1,7 @@
+"""FileModel: the data model for the FileStat database table.
+
+Provides SQL wrapper around file metadata and upload status.
+"""
 import sqlite3
 import json
 import logging
@@ -11,19 +15,15 @@ class FileModel(BaseModel):
 
     @classmethod
     def table_name(cls):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Returns the SQL table name 'FileStat'
+        :return: string 
         """
         return 'FileStat'
     
     @classmethod
     def create_table_sql(cls):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """All the sql create scripts needed by file objects for tables and indices
+        :return: string[] sql statements
         """
         return ["""
         CREATE TABLE IF NOT EXISTS {table_name}
@@ -43,10 +43,8 @@ class FileModel(BaseModel):
 
     @classmethod
     def bootstrap_table(cls):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Drops and recreates SQL tables using 
+        :return: None
         """
         cursor = cls.db_conn.cursor()
         try:
@@ -61,10 +59,9 @@ class FileModel(BaseModel):
 
     @classmethod
     def fetch_record(cls, status):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Retrieves the most recently-created instance with the given status.
+        :param status (`UploadStatusEnum`): target status
+        :return: FileModel instance if found, otherwise None
         """
         sql = f"SELECT * FROM {FileModel.table_name()} WHERE status = {status} ORDER BY created_at DESC LIMIT 1"
         cursor = cls.db_conn.cursor()
@@ -78,10 +75,8 @@ class FileModel(BaseModel):
         return None
 
     def __init__(self, *args):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Class constructor, setting table properties, and local `S3Uploader` instance.
+        :param args: tuple of values ordered as in create table script
         """
         tpl = args[0]
         self.id = tpl[0]
@@ -94,10 +89,10 @@ class FileModel(BaseModel):
         self.uploader = S3Uploader()
 
     def save(self, cursor):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Saves the receiver's properties into the database using INSERT OR IGNORE statement.
+           Will throw exception on error.
+        :param cursor: active cursor to execute SQL
+        :return: None
         """
         sql = """
             INSERT OR IGNORE INTO {table_name}
@@ -117,10 +112,10 @@ class FileModel(BaseModel):
         cursor.execute(sql)
 
     def metadata(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Data structure used to store file metadata in storage provider.
+           Properties include `file_size`, `last_modified`, and `permissions`.
+           Rendered as string for storage purposes.
+        :return: string JSON-formatted using `json.dumps`
         """
         data = {
             "file_size": self.file_size,
@@ -130,20 +125,21 @@ class FileModel(BaseModel):
         return json.dumps(data)
 
     def _update_status(self, cursor):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Convenience method for SQL UPDATE of the `status` property.
+           Executes SQL and commits.  Throws exception on error.
+        :param cursor: used for SQL execution
+        :return: None
         """
         sql = f"UPDATE {self.table_name()} SET status = {self.status} WHERE id = '{self.id}'"
         cursor.execute(sql)
         self.db_conn.commit()
 
     def start_upload(self, cursor):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Status state change to initiate upload.  Calls `_update_status`.
+           Invokes `upload_file` and `upload_metadata` on the uploader property.
+           If either upload fails, calls `upload_failed`; otherwise calls `upload_complete`
+        :param cursor: used for SQL execution
+        :return: None
         """
         self.status = UploadStatus.IN_PROGRESS.value
         self._update_status(cursor)
@@ -154,45 +150,40 @@ class FileModel(BaseModel):
         self.upload_complete(cursor) if completed  else self.upload_failed(cursor) 
 
     def upload_complete(self, cursor):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Status state change to success upload completion.  Calls `_update_status`.
+        :param cursor: used for SQL execution
+        :return: None
         """
         self.status = UploadStatus.COMPLETED.value
         self._update_status(cursor)
 
     def upload_failed(self, cursor):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """Status state change to failed upload.  Calls `_update_status`.
+        :param cursor: used for SQL execution
+        :return: None
         """
         self.status = UploadStatus.FAILED.value
         self._update_status(cursor)
 
     def get_uploaded_file(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """For testing purposes, fetches the uploaded file from object storage
+        :return: binary string: the uploaded file bytes or None
         """
         return self.uploader.get_uploaded_data(self.bucket_name, self.id)
 
     def get_uploaded_metadata(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """For testing purposes, fetches the uploaded metadata from object storage
+        :return: dict: the uploaded metadata or None
         """
         metadata = self.uploader.get_uploaded_data(self.bucket_name, f"metadata-{self.id}")
         return json.loads(metadata)
 
     def parallel_dto_string(self):
-        """Describe
-        :param name: describe
-        :param name: describe
-        :return: type describe
+        """For parallel uploading with multiprocessing module,
+           provides data transfer object needed for uploading
+           in a separate process: `id`, `file_path`, `metadata`,
+           `bucket_name`, `status`.
+        :return: string: the JSON string of properties
         """
         dto = {
             "id": self.id,
