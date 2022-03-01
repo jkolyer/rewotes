@@ -255,7 +255,7 @@ class BatchJobModel(BaseModel):
                 # logger.debug(file_path)
                 file_size = fstat.st_size
                 last_modified = fstat.st_mtime
-                permissions = stat.S_IMODE(fmode)
+                permissions = oct(fstat.st_mode)[-3:]
                 status = UploadStatus.PENDING.value
 
                 file_obj = FileModel((
@@ -340,4 +340,17 @@ class BatchJobModel(BaseModel):
         for i in range(max_concur):
             await sem.acquire()
         cursor.close()
+
+    def reset_file_status(self):
+        cursor = self.db_conn.cursor()
+        try:
+            sql = f"UPDATE {FileModel.table_name()} SET status = {UploadStatus.PENDING.value}"
+            cursor.execute(sql)
+            self.db_conn.commit()
+        except sqlite3.Error as error:
+            logger.error(f"Error running sql: {error}; {sql}")
+        finally:
+            cursor.close
+        
+        
         

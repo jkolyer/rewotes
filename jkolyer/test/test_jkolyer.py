@@ -115,12 +115,11 @@ class TestAsyncFileModel(TestJkolyer):
     
     @classmethod
     def setup_class(cls):
-        FileModel.bootstrap_table()
         batch = BatchJobModel.query_latest()
-        batch.generate_file_records()
+        batch.reset_file_status()
 
     @pytest.mark.asyncio            
-    async def xtest_batch_uploads_parallel(self, s3):
+    async def test_batch_uploads_parallel(self, s3):
         # reset the file records
         FileModel.bootstrap_table()
         batch = BatchJobModel.query_latest()
