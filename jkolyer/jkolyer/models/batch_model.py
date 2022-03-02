@@ -226,7 +226,7 @@ class BatchJobModel(BaseModel):
         sem = asyncio.Semaphore(max_concur)
 
         async def task_wrapper(model, cursor):
-            # logger.debug(f"task_wrapper:  model = {model.file_path}")
+            logger.debug(f"task_wrapper:  model = {model.file_path}")
             try:
                 model.start_upload(cursor)
             finally:
