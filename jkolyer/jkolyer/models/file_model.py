@@ -200,7 +200,7 @@ class FileModel(BaseModel):
             "metadata": self.metadata(),
             "bucket_name": Uploader.bucket_name,
             "status": self.status,
-            "localstack_url": S3Uploader.localstack_url
+            "endpoint_url": S3Uploader.endpoint_url
         }
         return json.dumps(dto)
 

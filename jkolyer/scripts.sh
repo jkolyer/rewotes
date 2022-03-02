@@ -9,6 +9,6 @@ samplegen() {
 }
 
 locakstack() {
-    python pfu.py --root_dir ./samples --localstack_url "http://localhost:4566"
+    python pfu.py --root_dir ./samples --endpoint_url "http://localhost:4566"
 }
 

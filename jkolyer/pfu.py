@@ -35,10 +35,10 @@ def parse_cmd_line_arguments():
         help="Runs the uploads in a single process using asyncio (default).",
     )
     parser.add_argument(
-        "--localstack_url",
+        "--endpoint_url",
         nargs=1,
         action="store",
-        metavar="LOCALSTACK_URL",
+        metavar="ENDPOINT_URL",
         help="Endpoint for localstack S3 in the form http://localhost:4566",
     )
     parser.add_argument(
@@ -85,11 +85,11 @@ if __name__ == '__main__':
     if concurrent and parallel:
         parallel = False
 
-    localstack_url = args.localstack_url
-    if localstack_url:
-        client = boto3.client("s3", endpoint_url=localstack_url[0], region_name='us-east-1')
+    endpoint_url = args.endpoint_url
+    if endpoint_url:
+        client = boto3.client("s3", endpoint_url=endpoint_url[0], region_name='us-east-1')
         S3Uploader.set_boto3_client(client)
-        S3Uploader.set_localstack_url(localstack_url[0])
+        S3Uploader.set_endpoint_url(endpoint_url[0])
         
     perform_file_upload(parallel, root_dir)
     

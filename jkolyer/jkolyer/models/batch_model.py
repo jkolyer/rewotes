@@ -260,7 +260,8 @@ def parallel_upload(file_dto_string, queue, sema):
     """
     file_dto = json.loads(file_dto_string)
 
-    S3Uploader.set_localstack_url(file_dto["localstack_url"])
+    logger.debug(f"parallel_upload:  file_dto_string = {file_dto_string}")
+    S3Uploader.set_endpoint_url(file_dto["endpoint_url"])
     
     uploader = S3Uploader()
     # uploader.client.create_bucket(Bucket=Uploader.bucket_name)
@@ -303,7 +304,7 @@ def parallel_upload_files(batch_model):
     """temporary store of file_models in progress"""
     file_models_progress = {}
 
-    def handle_queue():
+    def _read_queue():
         """Handle data in the queue which is 
            populated by the `parallel_upload` function
            run in separate process.  Here we update database
@@ -341,11 +342,11 @@ def parallel_upload_files(batch_model):
         all_processes.append(proc)
         proc.start()
 
-        handle_queue()
+        _read_queue()
 
     # inside main process, wait for all processes to finish
     for p in all_processes:
         p.join()
         
-    handle_queue()
+    _read_queue()
 

@@ -14,7 +14,15 @@ logging.basicConfig(level=logging.DEBUG)
 class Uploader(ABC):
     bucket_name = 'rewotes-pfu-bucket'
     boto3_client = None
-    localstack_url = None
+    endpoint_url = None
+
+    @classmethod
+    def s3_mock(cls):
+        mock = mock_s3()
+        mock.start()
+        s3 = boto3.client('s3', region_name='us-east-1')
+        s3.create_bucket(Bucket=cls.bucket_name)
+        return s3
 
     @classmethod
     def set_boto3_client(cls, client):
@@ -22,8 +30,8 @@ class Uploader(ABC):
         client.create_bucket(Bucket=cls.bucket_name)
    
     @classmethod
-    def set_localstack_url(cls, url):
-        cls.localstack_url = url
+    def set_endpoint_url(cls, url):
+        cls.endpoint_url = url
    
     def __init__(self):
         pass
@@ -54,8 +62,8 @@ class S3Uploader(Uploader):
         if self.boto3_client:
             self.client = self.boto3_client
         else:
-            if self.localstack_url:
-                self.client = boto3.client("s3", endpoint_url=self.localstack_url)
+            if self.endpoint_url:
+                self.client = boto3.client("s3", endpoint_url=self.endpoint_url)
             else:
                 self.client = boto3.client("s3")
         self.client.create_bucket(Bucket=Uploader.bucket_name)
