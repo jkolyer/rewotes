@@ -260,7 +260,7 @@ def parallel_upload(file_dto_string, queue, sema):
     """
     file_dto = json.loads(file_dto_string)
 
-    logger.debug(f"parallel_upload:  file_dto_string = {file_dto_string}")
+    # logger.debug(f"parallel_upload:  file_dto_string = {file_dto_string}")
     S3Uploader.set_endpoint_url(file_dto["endpoint_url"])
     
     uploader = S3Uploader()

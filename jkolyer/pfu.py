@@ -50,7 +50,7 @@ def parse_cmd_line_arguments():
     )
     return parser.parse_args()
 
-def perform_file_upload(parallel=False, root_dir='.'):
+def perform_file_upload(parallel, root_dir):
     logger.info(f"initializing database, file root = {root_dir}")
     
     FileModel.create_tables()

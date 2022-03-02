@@ -41,19 +41,19 @@ def s3(aws_credentials):
         # s3.create_bucket(Bucket=Uploader.bucket_name)
         yield s3
 
-def s3_mock():
-    mock = mock_s3()
-    mock.start()
-    s3 = boto3.client('s3', region_name='us-east-1')
-    s3.create_bucket(Bucket=Uploader.bucket_name)
-    return s3
+# def s3_mock():
+#     mock = mock_s3()
+#     mock.start()
+#     s3 = boto3.client('s3', region_name='us-east-1')
+#     s3.create_bucket(Bucket=Uploader.bucket_name)
+#     return s3
 
 
 class TestJkolyer(object):
 
     @classmethod
     def setup_class(cls):
-        S3Uploader.set_boto3_client(s3_mock())
+        S3Uploader.set_boto3_client(Uploader.s3_mock())
 
     @classmethod
     def teardown_class(cls):

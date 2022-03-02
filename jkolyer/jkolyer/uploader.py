@@ -11,6 +11,8 @@ from moto import mock_s3  # workaround for multiprocessing / pytest limits
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+MOCK_ENDPOINT_KEY = 's3_mock'
+
 class Uploader(ABC):
     bucket_name = 'rewotes-pfu-bucket'
     boto3_client = None
@@ -22,6 +24,7 @@ class Uploader(ABC):
         mock.start()
         s3 = boto3.client('s3', region_name='us-east-1')
         s3.create_bucket(Bucket=cls.bucket_name)
+        cls.endpoint_url = MOCK_ENDPOINT_KEY
         return s3
 
     @classmethod
@@ -63,9 +66,13 @@ class S3Uploader(Uploader):
             self.client = self.boto3_client
         else:
             if self.endpoint_url:
-                self.client = boto3.client("s3", endpoint_url=self.endpoint_url)
+                if self.endpoint_url != MOCK_ENDPOINT_KEY:
+                    self.client = boto3.client("s3", endpoint_url=self.endpoint_url)
+                else:
+                    self.client = self.s3_mock()
             else:
                 self.client = boto3.client("s3")
+                
         self.client.create_bucket(Bucket=Uploader.bucket_name)
                 
     
