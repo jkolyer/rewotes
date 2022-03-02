@@ -5,7 +5,7 @@ Provides SQL wrapper around file metadata and upload status.
 import sqlite3
 import json
 import logging
-from jkolyer.uploader import S3Uploader
+from jkolyer.uploader import S3Uploader, Uploader
 from jkolyer.models.base_model import BaseModel, UploadStatus
 
 logger = logging.getLogger(__name__)
@@ -145,9 +145,9 @@ class FileModel(BaseModel):
         self.status = UploadStatus.IN_PROGRESS.value
         self._update_status(cursor)
         
-        completed = self.uploader.upload_file(self.file_path, self.bucket_name, self.id)
+        completed = self.uploader.upload_file(self.file_path, Uploader.bucket_name, self.id)
         if completed:
-            completed = self.uploader.upload_metadata(self.metadata(), self.bucket_name, f"metadata-{self.id}")
+            completed = self.uploader.upload_metadata(self.metadata(), Uploader.bucket_name, f"metadata-{self.id}")
         self.upload_complete(cursor) if completed  else self.upload_failed(cursor) 
 
     def upload_complete(self, cursor):
@@ -170,13 +170,13 @@ class FileModel(BaseModel):
         """For testing purposes, fetches the uploaded file from object storage
         :return: binary string: the uploaded file bytes or None
         """
-        return self.uploader.get_uploaded_data(self.bucket_name, self.id)
+        return self.uploader.get_uploaded_data(Uploader.bucket_name, self.id)
 
     def get_uploaded_metadata(self):
         """For testing purposes, fetches the uploaded metadata from object storage
         :return: dict: the uploaded metadata or None
         """
-        metadata = self.uploader.get_uploaded_data(self.bucket_name, f"metadata-{self.id}")
+        metadata = self.uploader.get_uploaded_data(Uploader.bucket_name, f"metadata-{self.id}")
         return json.loads(metadata)
 
     def parallel_dto_string(self):
@@ -190,7 +190,7 @@ class FileModel(BaseModel):
             "id": self.id,
             "file_path": self.file_path,
             "metadata": self.metadata(),
-            "bucket_name": self.bucket_name,
+            "bucket_name": Uploader.bucket_name,
             "status": self.status,
         }
         return json.dumps(dto)

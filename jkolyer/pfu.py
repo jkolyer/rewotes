@@ -1,12 +1,15 @@
+import os
 import pathlib
 import argparse
 import pathlib
 import sys
 import logging
+import boto3
 
 import asyncio
 from jkolyer.models.batch_model import BatchJobModel, parallel_upload_files
 from jkolyer.models.file_model import FileModel
+from jkolyer.uploader import S3Uploader
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -31,7 +34,13 @@ def parse_cmd_line_arguments():
         action='store_true',
         help="Runs the uploads in a single process using asyncio (default).",
     )
-
+    parser.add_argument(
+        "--localstack_url",
+        nargs=1,
+        action="store",
+        metavar="LOCALSTACK_URL",
+        help="Endpoint for localstack S3 in the form http://localhost:4566",
+    )
     parser.add_argument(
         "--root_dir",
         metavar="ROOT_DIR",
@@ -45,20 +54,21 @@ def perform_file_upload(parallel=False):
     logger.info(f"initializing database")
     FileModel.create_tables()
     BatchJobModel.create_tables()
-    sql = BatchJobModel.new_record_sql(root_dir)
-    BatchJobModel.run_sql_command(sql)
-
-    batch = BatchJobModel.query_latest()
+    
+    batch = BatchJobModel.new_instance()
     batch.generate_file_records()
+    batch.reset_file_status()
 
-    breakpoint()
     logger.info(f"performing upload")
     if parallel:
-        parallel_upload_files(batch, True)
+        parallel_upload_files(batch)
     else:
         loop = asyncio.get_event_loop()
         try:
-            loop.run_until_complete(batch.async_upload_files())
+            loop.run_until_complete(
+                asyncio.gather(
+                    batch.async_upload_files()
+                ))
         finally:
             loop.close()
 
@@ -73,7 +83,11 @@ if __name__ == '__main__':
     parallel = args.parallel
     if concurrent and parallel:
         parallel = False
-
+        
+    localstack_url = args.localstack_url
+    if localstack_url:
+        S3Uploader.set_boto3_client(boto3("s3", endpoint_url=self.localstack_url[0]))
+        
     perform_file_upload(parallel)
     
 

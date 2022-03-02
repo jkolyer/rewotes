@@ -11,7 +11,14 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 class Uploader(ABC):
-    
+    bucket_name = 'rewotes-pfu-bucket'
+    boto3_client = None
+
+    @classmethod
+    def set_boto3_client(cls, client):
+        cls.boto3_client = client
+        client.create_bucket(Bucket=cls.bucket_name)
+   
     def __init__(self):
         pass
 
@@ -35,16 +42,15 @@ class S3Uploader(Uploader):
     : client: instance provided by `boto3` for S3
     """
 
-    def __init__(self, in_test=False):
-        """Instance constructor.  Sets `client` property
-        :param in_test: workaround for overriding default `boto3`
-           in multiprocessing test scenarios
+    def __init__(self):
+        """Instance constructor.  Sets `client` property.  
         """
-        if in_test:
-            s3_mock = mock_s3()
-            s3_mock.start()
+        if self.boto3_client:
+            self.client = self.boto3_client
+        else:
+            self.client = boto3.client("s3")
+            self.client.create_bucket(Bucket=Uploader.bucket_name)
                 
-        self.client = boto3.client("s3")
     
     def get_uploaded_data(self, bucket_name, key):
         """Retrieves stored data (either file or metadata) for given key.

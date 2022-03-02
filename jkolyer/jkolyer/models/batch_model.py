@@ -15,7 +15,7 @@ import time
 
 from jkolyer.models.base_model import BaseModel, UploadStatus, dateSinceEpoch
 from jkolyer.models.file_model import FileModel
-from jkolyer.uploader import S3Uploader
+from jkolyer.uploader import S3Uploader, Uploader
 
 for name in logging.Logger.manager.loggerDict.keys():
     if ('boto' in name) or \
@@ -45,15 +45,15 @@ class BatchJobModel(BaseModel):
            Does nothing if the tables/indices already exist.
         :return: string[] SQL statements
         """
-        return ["""
-        CREATE TABLE IF NOT EXISTS {table_name}
-        ( id TEXT PRIMARY KEY, 
-        status INTEGER,
-        created_at INTEGER,
-        root_dir TEXT
-        );
-        """.format(table_name=cls.table_name()),
-                f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(created_at);",]
+        return [
+            """CREATE TABLE IF NOT EXISTS {table_name}
+                ( id TEXT PRIMARY KEY, 
+                status INTEGER,
+                created_at INTEGER,
+                root_dir TEXT );
+            """.format(table_name=cls.table_name()),
+            f"CREATE INDEX IF NOT EXISTS IdxCreatedAt ON {cls.table_name()}(created_at);",
+        ]
 
     @classmethod
     def new_record_sql(cls, root_dir):
@@ -61,18 +61,17 @@ class BatchJobModel(BaseModel):
         :param root_dir: the file directories root path
         :return: string SQL INSERT statement
         """
-        return """
-        INSERT INTO {table_name}
-                  ( id, status, created_at, root_dir )
-                  VALUES 
-                  ( '{idval}', {status}, {created_at}, '{root_dir}' )
-                """.format(
-                    table_name=cls.table_name(),
-                    idval=cuid(),
-                    status=UploadStatus.PENDING.value,
-                    created_at=dateSinceEpoch(),
-                    root_dir=root_dir,)
-    
+        return """INSERT INTO {table_name}
+            ( id, status, created_at, root_dir )
+            VALUES 
+            ( '{idval}', {status}, {created_at}, '{root_dir}' )
+            """.format(
+                table_name=cls.table_name(),
+                idval=cuid(),
+                status=UploadStatus.PENDING.value,
+                created_at=dateSinceEpoch(),
+                root_dir=root_dir,)
+
     @classmethod
     def query_latest(cls):
         """Fetches the most recent record from the database
@@ -94,6 +93,16 @@ class BatchJobModel(BaseModel):
             cursor.close()
         return None
 
+    @classmethod
+    def new_instance(cls, root_dir):
+        """Creates and return new instance
+        :param root_dir: the file directories root path
+        :return: BatchModel: the instance
+        """
+        sql = cls.new_record_sql(root_dir)
+        cls.run_sql_command(sql)
+        return cls.query_latest()
+    
     def __init__(self, props):
         """Instance constructor, setting table properties
         :param args: tuple of values ordered as in create table script
@@ -226,7 +235,7 @@ class BatchJobModel(BaseModel):
         sem = asyncio.Semaphore(max_concur)
 
         async def task_wrapper(model, cursor):
-            logger.debug(f"task_wrapper:  model = {model.file_path}")
+            logger.info(f"task_wrapper:  file = {model.file_path}")
             try:
                 model.start_upload(cursor)
             finally:
@@ -242,18 +251,18 @@ class BatchJobModel(BaseModel):
         cursor.close()
 
         
-def parallel_upload(file_dto_string, queue, sema, mock_s3=False):
-    """Perform upload command in multiprocessing mode
+def parallel_upload(file_dto_string, queue, sema):
+    """Perform upload command in multiprocessing mode.  This runs 
+       seperate from the main process.
     :param file_dto_string:  JSON-formatted string as FileModel dto
     :param queue: inter-process queue to share upload results
     :param sema: semaphora to limit number of active processes
-    :param mock_s3:  flag to manually override default `boto3` S3
     :return: None
     """
     file_dto = json.loads(file_dto_string)
     
-    uploader = S3Uploader(mock_s3)
-    uploader.client.create_bucket(Bucket=FileModel.bucket_name)
+    uploader = S3Uploader()
+    uploader.client.create_bucket(Bucket=Uploader.bucket_name)
     
     completed = uploader.upload_file(
         file_dto["file_path"], file_dto["bucket_name"], file_dto["id"]
@@ -272,12 +281,12 @@ def parallel_upload(file_dto_string, queue, sema, mock_s3=False):
     # processes blocked on it to continue
     sema.release()
 
-def parallel_upload_files(batch_model, mock_s3=False):
+    
+def parallel_upload_files(batch_model):
     """Uploads files using multiprocessing.  To workaround limitations
        in pytest, we passing in flag to override default `boto3` behavior.
        Limits concurrent process count to `multiprocessing.cpu_count`.
     :param batch_model: the BatchJobModel instance
-    :param mock_s3: dictates when to use mock_s3 module
     :return: None
     """
     concurrency = cpu_count()
@@ -322,7 +331,7 @@ def parallel_upload_files(batch_model, mock_s3=False):
         file_models_progress[file_model.id] = file_model
         
         dtoStr = file_model.parallel_dto_string()
-        proc = Process(target=parallel_upload, args=(dtoStr, queue, sema, mock_s3))
+        proc = Process(target=parallel_upload, args=(dtoStr, queue, sema))
         all_processes.append(proc)
         proc.start()
 
