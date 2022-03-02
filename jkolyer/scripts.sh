@@ -8,7 +8,7 @@ samplegen() {
     python jkolyer/directories.py --tree_depth 3 samples    
 }
 
-flush_db() {
-    python jkolyer/jkolyer.py --flush_db
+locakstack() {
+    python pfu.py --root_dir ./samples --localstack_url "http://localhost:4566"
 }
 

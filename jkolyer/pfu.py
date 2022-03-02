@@ -50,12 +50,13 @@ def parse_cmd_line_arguments():
     )
     return parser.parse_args()
 
-def perform_file_upload(parallel=False):
-    logger.info(f"initializing database")
+def perform_file_upload(parallel=False, root_dir='.'):
+    logger.info(f"initializing database, file root = {root_dir}")
+    
     FileModel.create_tables()
     BatchJobModel.create_tables()
     
-    batch = BatchJobModel.new_instance()
+    batch = BatchJobModel.new_instance(root_dir)
     batch.generate_file_records()
     batch.reset_file_status()
 
@@ -83,11 +84,13 @@ if __name__ == '__main__':
     parallel = args.parallel
     if concurrent and parallel:
         parallel = False
-        
+
     localstack_url = args.localstack_url
     if localstack_url:
-        S3Uploader.set_boto3_client(boto3("s3", endpoint_url=self.localstack_url[0]))
+        client = boto3.client("s3", endpoint_url=localstack_url[0], region_name='us-east-1')
+        S3Uploader.set_boto3_client(client)
+        S3Uploader.set_localstack_url(localstack_url[0])
         
-    perform_file_upload(parallel)
+    perform_file_upload(parallel, root_dir)
     
 

@@ -235,7 +235,6 @@ class BatchJobModel(BaseModel):
         sem = asyncio.Semaphore(max_concur)
 
         async def task_wrapper(model, cursor):
-            logger.info(f"task_wrapper:  file = {model.file_path}")
             try:
                 model.start_upload(cursor)
             finally:
@@ -260,16 +259,23 @@ def parallel_upload(file_dto_string, queue, sema):
     :return: None
     """
     file_dto = json.loads(file_dto_string)
+
+    S3Uploader.set_localstack_url(file_dto["localstack_url"])
     
     uploader = S3Uploader()
-    uploader.client.create_bucket(Bucket=Uploader.bucket_name)
+    # uploader.client.create_bucket(Bucket=Uploader.bucket_name)
+    
+    metadata = file_dto["metadata"]
     
     completed = uploader.upload_file(
-        file_dto["file_path"], file_dto["bucket_name"], file_dto["id"]
+        file_dto["file_path"],
+        file_dto["bucket_name"],
+        file_dto["id"],
+        metadata["file_size"],
     )
     if completed:
         completed = uploader.upload_metadata(
-            json.dumps(file_dto["metadata"]), file_dto["bucket_name"], f"metadata-{file_dto['id']}"
+            json.dumps(metadata), file_dto["bucket_name"], f"metadata-{file_dto['id']}"
         )
         
     file_dto["status"] = UploadStatus.COMPLETED.value if completed else UploadStatus.FAILED.value

@@ -48,7 +48,7 @@ def s3_mock():
     s3.create_bucket(Bucket=Uploader.bucket_name)
     return s3
 
-        
+
 class TestJkolyer(object):
 
     @classmethod

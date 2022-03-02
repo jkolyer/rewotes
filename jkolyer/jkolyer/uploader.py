@@ -2,6 +2,7 @@
 """
 import os
 from abc import ABC, abstractmethod
+import json
 import boto3
 from botocore.exceptions import ClientError
 import logging
@@ -13,11 +14,16 @@ logging.basicConfig(level=logging.DEBUG)
 class Uploader(ABC):
     bucket_name = 'rewotes-pfu-bucket'
     boto3_client = None
+    localstack_url = None
 
     @classmethod
     def set_boto3_client(cls, client):
         cls.boto3_client = client
         client.create_bucket(Bucket=cls.bucket_name)
+   
+    @classmethod
+    def set_localstack_url(cls, url):
+        cls.localstack_url = url
    
     def __init__(self):
         pass
@@ -48,8 +54,11 @@ class S3Uploader(Uploader):
         if self.boto3_client:
             self.client = self.boto3_client
         else:
-            self.client = boto3.client("s3")
-            self.client.create_bucket(Bucket=Uploader.bucket_name)
+            if self.localstack_url:
+                self.client = boto3.client("s3", endpoint_url=self.localstack_url)
+            else:
+                self.client = boto3.client("s3")
+        self.client.create_bucket(Bucket=Uploader.bucket_name)
                 
     
     def get_uploaded_data(self, bucket_name, key):
@@ -70,13 +79,13 @@ class S3Uploader(Uploader):
         :return: bool: True if no errors, False otherwise
         """
         try:
-            self.client.put_object(Bucket=bucket_name, Key=key, Body=metadata)
+            self.client.put_object(Bucket=bucket_name, Key=key, Body=json.dumps(metadata))
         except ClientError as err:
             logging.error(err)
             return False
         return True
                 
-    def upload_file(self, file_name, bucket, object_id):
+    def upload_file(self, file_name, bucket, object_id, file_size):
         """Upload a file to an S3 bucket
         :param file_name: File path to upload
         :param bucket: Bucket to upload to
@@ -84,6 +93,7 @@ class S3Uploader(Uploader):
         :return: True if file was uploaded, else False
         """
         try:
+            logger.info(f"S3Uploader.upload_file: {file_name}; {file_size}")
             self.client.upload_file(file_name, bucket, object_id)
         except ClientError as err:
             logging.error(err)
